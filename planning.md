@@ -74,6 +74,13 @@ At its core, the app is a **state machine** — each phase locks certain data ag
 - Locking logic (which fields are editable in which phase) belongs in **one central, shared rule definition** in the `packages/shared` package — so that the frontend (immediate feedback: "field is locked") and backend (hard enforcement) use the same source. This is exactly the use case for which you wanted to share TypeScript between frontend and backend.
 - The "compare multiple runs" requirement from Phase 3 means: allocation runs initially live only as tagged JSON blobs in Redis (key e.g. `allocation-run:{electionId}:{runId}`), not as a dedicated DB table. Only the run selected by the admin is translated into the final `assignments` entries in Postgres — and can be overwritten there by a new run at any time until it is sent out.
 
+### Locked Decision: Allocation Rule Model (Sub-Rules instead of OR-Alternatives)
+A rule consists of any number of **sub-rules**, each holding one or more categories. Categories within the same sub-rule are *not* distinct from each other (one module covering all of them satisfies the sub-rule alone); a module may satisfy **at most one sub-rule** of a rule. This single exclusivity constraint replaces two earlier ideas that were considered and rejected:
+- **OR-alternatives between rule paths** — dropped because a greedy, preference-driven allocator has no lookahead: it can accumulate partial progress across multiple competing alternatives without ever completing one, wasting module slots. Real school rules didn't need true disjunctive paths (e.g. "2x Sport OR 1x Sprache+1x Kunst") — see `db_planning.md`.
+- **A separate "distinct-group" flag/table alongside plain category+count requirements** — dropped because two overlapping groups referencing a shared category (e.g. `{Sprache,Kunst}` and `{Kunst,Musik}`) created unresolvable ambiguity over whether distinctness is transitive (does Sprache≠Kunst and Kunst≠Musik imply Sprache≠Musik?). The sub-rule model can't express that ambiguous state at all — the same category simply can't be reused across sub-rules by construction.
+
+This decision spans three layers that must stay in sync: the DB schema (`rules` → `sub_rules` → `category_in_sub_rule` in `db_planning.md`), the `AllocationRule`/`AllocationSubRule` types in `packages/allocation-engine`, and any future rule-editing UI. Changing the rule model again later means touching all three — treat it as a stable foundation, not something to casually adjust in just one layer.
+
 ---
 
 ## 3. Tech Stack (Overview)

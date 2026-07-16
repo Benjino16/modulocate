@@ -4,6 +4,7 @@ export type ModuleId = string & { readonly __brand: "ModuleId" };
 export type CategoryId = string & { readonly __brand: "CategoryId" };
 export type GroupId = string & { readonly __brand: "GroupId" };
 export type RuleId = string & { readonly __brand: "RuleId" };
+export type SubRuleId = string & { readonly __brand: "SubRuleId" };
 export type DateId = string & { readonly __brand: "DateId" };
 
 // --- Module ---
@@ -30,19 +31,23 @@ export interface AllocationGroup {
 }
 
 // --- Rule ---
-// rule_alternatives = OR, category_in_rule_alternative = AND within an alternative
-export interface AllocationRuleRequirement {
-  categoryId: CategoryId;
-  count: number;
-}
-
-export interface AllocationRuleAlternative {
-  requirements: AllocationRuleRequirement[];
+// A rule consists of any number of sub-rules. Categories within the same sub-rule are
+// NOT distinct from each other — a single module that is a member of all of them satisfies
+// the sub-rule alone. If no such module exists among the assigned ones, multiple modules
+// are needed whose combined category membership covers the sub-rule (set-cover).
+// Each assigned module may satisfy at most one sub-rule of a rule — this exclusivity is
+// what makes sub-rules distinct from one another, without needing a separate flag/grouping
+// concept (and without the transitivity ambiguity that concept would introduce).
+// "2x Sport" is expressed as two separate sub-rules each containing just {Sport}, not via
+// a count field — exclusivity then forces two distinct Sport modules.
+export interface AllocationSubRule {
+  id: SubRuleId;
+  categoryIds: CategoryId[];
 }
 
 export interface AllocationRule {
   id: RuleId;
-  alternatives: AllocationRuleAlternative[];
+  subRules: AllocationSubRule[];
 }
 
 // --- Student ---

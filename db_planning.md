@@ -92,20 +92,26 @@
 - project_id:  uuid  FK→projects
 - name:        text
 
-### rule_alternatives
--- eine Rule ist erfüllt wenn EINE Alternative erfüllt ist (OR-Logik)
--- einfache Rules haben genau eine Alternative
-- id:       uuid  PK
-- rule_id:  uuid  FK→rules
-- project_id: uuid FK→projects
+### sub_rules
+-- eine Rule besteht aus beliebig vielen sub_rules
+-- jedes einem Studenten zugeteilte Modul darf höchstens eine sub_rule (rule-weit) abdecken
+-- -> dadurch sind sub_rules untereinander immer distinct, ohne extra Flag/Gruppen-Konzept
+--    und ohne die Transitivitäts-Ambiguität, die so ein Gruppen-Konzept erzeugen würde
+- id:          uuid  PK
+- rule_id:     uuid  FK→rules
+- project_id:  uuid  FK→projects
 
-### category_in_rule_alternative
--- innerhalb einer Alternative müssen ALLE categories erfüllt sein (AND-Logik)
--- count: wie viele verschiedene Module aus dieser Category benötigt werden
-- alternative_id:  uuid  PK  FK→rule_alternatives
-- category_id:     uuid  PK  FK→module_categories
-- count:           int        -- z.B. 2 = "2x Sport"
-- project_id:      uuid  FK→projects
+### category_in_sub_rule
+-- Categories innerhalb derselben sub_rule sind NICHT distinct: ein einzelnes Modul, das
+-- Mitglied aller hier gelisteten Categories ist, deckt die sub_rule allein ab.
+-- Gibt es kein solches Modul unter den zugeteilten, werden mehrere Module gebraucht, deren
+-- Category-Vereinigung die sub_rule abdeckt (Set-Cover) — die zählen dann aber weiterhin
+-- exklusiv nur für DIESE sub_rule, nicht für andere.
+-- "2x Sport" wird nicht über ein count-Feld abgebildet, sondern über zwei separate
+-- sub_rules mit je {Sport} — die Exklusivitätsregel erzwingt dann zwei unterschiedliche Module.
+- sub_rule_id:  uuid  PK  FK→sub_rules
+- category_id:  uuid  PK  FK→module_categories
+- project_id:   uuid  FK→projects
 
 ---
 
