@@ -45,6 +45,12 @@ export interface AllocationSubRule {
   categoryIds: CategoryId[];
 }
 
+// Blocking (rule_blocked_category/module/date in the DB) is deliberately NOT
+// represented here — it's resolved once per student by the worker's translation
+// layer, before the allocator ever sees an AllocationInput, same as eligibleModuleIds
+// below. Sub-rules are the one exception kept raw: their exclusivity ("a module may
+// satisfy at most one sub-rule") depends on which modules end up assigned together,
+// so it can't be flattened into a static per-student list ahead of time.
 export interface AllocationRule {
   id: RuleId;
   subRules: AllocationSubRule[];
@@ -61,7 +67,8 @@ export interface AllocationStudent {
   groupIds: GroupId[];
   ruleId: RuleId | null; // resolved: student.rule_id overrides group.rule_id
   preferences: AllocationPreference[]; // only modules the student was allowed to see
-  eligibleModuleIds: ModuleId[]; // resolved: all blocking layers (category/module/date, group+student override) applied
+  eligibleModuleIds: ModuleId[]; // resolved: modules not excluded by the effective rule's blocked category/module/date (composition-resolved)
+  blockedDateIds: DateId[]; // resolved: the effective rule's blocked dates, for schedule-conflict checks alongside module.dateIds
 }
 
 // --- Input ---

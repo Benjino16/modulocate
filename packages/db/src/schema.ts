@@ -3,7 +3,6 @@ import {
   uuid,
   text,
   integer,
-  boolean,
   timestamp,
   jsonb,
   primaryKey,
@@ -181,73 +180,43 @@ export const moduleInDate = pgTable(
 );
 
 // --- Blocking ---
-// group_*/student_* pairs share the same shape: isBlocked=true blocks, false is an
-// explicit allow (whitelist) that overrides a group-level block when set on the student.
+// Blocking hangs off the rule, not off the group/student directly. Both
+// student_groups.rule_id and students.rule_id point at the same `rules` row,
+// so a rule's blocked_* rows apply the same way regardless of which one holds
+// it — many groups sharing identical restrictions just share one rule, and a
+// student needing a different block set gets their own rule (students.rule_id
+// overrides student_groups.rule_id), rather than this table needing its own
+// group/student-level override semantics.
 
-export const groupBlockedCategory = pgTable(
-  "group_blocked_category",
+export const ruleBlockedCategory = pgTable(
+  "rule_blocked_category",
   {
-    groupId: uuid("group_id").notNull().references(() => studentGroups.id),
+    // blocked rows are owned by their rule — same cascade reasoning as sub_rules
+    ruleId: uuid("rule_id").notNull().references(() => rules.id, { onDelete: "cascade" }),
     categoryId: uuid("category_id").notNull().references(() => moduleCategories.id),
     projectId: uuid("project_id").notNull().references(() => projects.id),
-    isBlocked: boolean("is_blocked").notNull(),
   },
-  (table) => [primaryKey({ columns: [table.groupId, table.categoryId] })],
+  (table) => [primaryKey({ columns: [table.ruleId, table.categoryId] })],
 );
 
-export const groupBlockedModule = pgTable(
-  "group_blocked_module",
+export const ruleBlockedModule = pgTable(
+  "rule_blocked_module",
   {
-    groupId: uuid("group_id").notNull().references(() => studentGroups.id),
+    ruleId: uuid("rule_id").notNull().references(() => rules.id, { onDelete: "cascade" }),
     moduleId: uuid("module_id").notNull().references(() => modules.id),
     projectId: uuid("project_id").notNull().references(() => projects.id),
-    isBlocked: boolean("is_blocked").notNull(),
   },
-  (table) => [primaryKey({ columns: [table.groupId, table.moduleId] })],
+  (table) => [primaryKey({ columns: [table.ruleId, table.moduleId] })],
 );
 
-export const studentBlockedCategory = pgTable(
-  "student_blocked_category",
+export const ruleBlockedDate = pgTable(
+  "rule_blocked_date",
   {
-    studentId: uuid("student_id").notNull().references(() => students.id),
-    categoryId: uuid("category_id").notNull().references(() => moduleCategories.id),
-    projectId: uuid("project_id").notNull().references(() => projects.id),
-    isBlocked: boolean("is_blocked").notNull(),
-  },
-  (table) => [primaryKey({ columns: [table.studentId, table.categoryId] })],
-);
-
-export const studentBlockedModule = pgTable(
-  "student_blocked_module",
-  {
-    studentId: uuid("student_id").notNull().references(() => students.id),
-    moduleId: uuid("module_id").notNull().references(() => modules.id),
-    projectId: uuid("project_id").notNull().references(() => projects.id),
-    isBlocked: boolean("is_blocked").notNull(),
-  },
-  (table) => [primaryKey({ columns: [table.studentId, table.moduleId] })],
-);
-
-export const groupBlockedDate = pgTable(
-  "group_blocked_date",
-  {
-    groupId: uuid("group_id").notNull().references(() => studentGroups.id),
+    ruleId: uuid("rule_id").notNull().references(() => rules.id, { onDelete: "cascade" }),
     dateId: uuid("date_id").notNull().references(() => dates.id),
     projectId: uuid("project_id").notNull().references(() => projects.id),
-    isBlocked: boolean("is_blocked").notNull(),
   },
-  (table) => [primaryKey({ columns: [table.groupId, table.dateId] })],
-);
-
-export const studentBlockedDate = pgTable(
-  "student_blocked_date",
-  {
-    studentId: uuid("student_id").notNull().references(() => students.id),
-    dateId: uuid("date_id").notNull().references(() => dates.id),
-    projectId: uuid("project_id").notNull().references(() => projects.id),
-    isBlocked: boolean("is_blocked").notNull(),
-  },
-  (table) => [primaryKey({ columns: [table.studentId, table.dateId] })],
+  (table) => [primaryKey({ columns: [table.ruleId, table.dateId] })],
 );
 
 // --- Voting & Allocation ---
