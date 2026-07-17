@@ -14,6 +14,8 @@
     "@modulocate/ui": "workspace:*",
     "@tailwindcss/vite": "^4.3.2",
     "@tanstack/react-query": "^5.101.2",
+    "@tanstack/react-router": "^1.170.18",
+    "@tanstack/react-router-devtools": "^1.167.0",
     "@trpc/client": "^11.18.0",
     "@trpc/tanstack-react-query": "^11.18.0",
     "react": "^19.2.7",
@@ -22,6 +24,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@modulocate/backend": "workspace:*",
+    "@tanstack/router-plugin": "^1.168.20",
     "@types/node": "^24.13.2",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",

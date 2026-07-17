@@ -12,7 +12,7 @@ import {
 } from "@modulocate/shared";
 import { router, publicProcedure } from "./trpc";
 import { db } from "./db";
-import { modules, rules, subRules, categoryInSubRule, studentGroups } from "./db/schema";
+import { modules, rules, subRules, categoryInSubRule, studentGroups, students, projects } from "./db/schema";
 
 // Stopgap until auth/project-context middleware exists: projectId is an
 // explicit input instead of being derived from ctx. Once a session carries
@@ -66,6 +66,19 @@ export const appRouter = router({
   health: publicProcedure.query(() => {
     return { status: "ok" as const };
   }),
+
+  // Stopgap until auth/sessions exist: lists every project so the portal's
+  // project switcher has something to select from (see projectScoped above).
+  projects: router({
+    list: publicProcedure.query(() => db.select().from(projects)),
+  }),
+
+  students: router({
+    list: publicProcedure.input(projectScoped).query(({ input }) =>
+      db.select().from(students).where(eq(students.projectId, input.projectId)),
+    ),
+  }),
+
   modules: router({
     list: publicProcedure.input(projectScoped).query(({ input }) =>
       db

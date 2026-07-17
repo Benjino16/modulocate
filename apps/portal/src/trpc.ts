@@ -1,4 +1,5 @@
 import { createTRPCClient, httpBatchLink } from "@trpc/client";
+import { createTRPCContext } from "@trpc/tanstack-react-query";
 import type { AppRouter } from "@modulocate/backend/router";
 
 export const trpcClient = createTRPCClient<AppRouter>({
@@ -8,3 +9,5 @@ export const trpcClient = createTRPCClient<AppRouter>({
     }),
   ],
 });
+
+export const { TRPCProvider, useTRPC } = createTRPCContext<AppRouter>();

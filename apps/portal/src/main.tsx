@@ -1,10 +1,29 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import '@modulocate/ui/globals.css'
-import App from './App.tsx'
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { RouterProvider, createRouter } from "@tanstack/react-router";
+import "@modulocate/ui/globals.css";
+import { routeTree } from "./routeTree.gen";
+import { TRPCProvider, trpcClient } from "./trpc";
+import { ProjectProvider } from "./lib/project-context";
 
-createRoot(document.getElementById('root')!).render(
+const queryClient = new QueryClient();
+const router = createRouter({ routeTree });
+
+declare module "@tanstack/react-router" {
+  interface Register {
+    router: typeof router;
+  }
+}
+
+createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <App />
+    <QueryClientProvider client={queryClient}>
+      <TRPCProvider trpcClient={trpcClient} queryClient={queryClient}>
+        <ProjectProvider>
+          <RouterProvider router={router} />
+        </ProjectProvider>
+      </TRPCProvider>
+    </QueryClientProvider>
   </StrictMode>,
-)
+);
