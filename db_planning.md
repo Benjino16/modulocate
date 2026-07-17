@@ -42,6 +42,7 @@
 - picture_url:     text?
 - min:             int
 - max:             int
+- withdrawn_at:     datetime?  -- soft-delete für Notfall-Entfernen während laufender Wahl (siehe planning.md); Vote/Allocator filtern IS NULL statt hard delete, damit bestehende student_preferences/eligibility-Zeilen valide bleiben
 
 ### module_categories
 - id:          uuid  PK
@@ -156,6 +157,28 @@
 ---
 
 ## Voting & Allocation
+
+### student_eligible_module
+-- Snapshot der aufgelösten Blocking-Regeln (group_blocked_*, student_blocked_*,
+-- category_includes_category, Gruppen-Mitgliedschaft, Student-Override), berechnet
+-- beim Phasenübergang setup->open. Reine Read-Optimierung für die Vote-App ("wer
+-- darf was sehen"), damit nicht bei jedem Seitenaufruf die volle Blocking-Kette
+-- aufgelöst werden muss — KEIN Korrektheits-Gate für die Allocation: der Worker
+-- löst Eligibility beim Bau des AllocationInput immer live aus den aktuellen
+-- Blocking-Tabellen auf und verlässt sich nie auf diesen Snapshot (siehe
+-- "Live Resolution Instead of Frozen State" in planning.md). Deshalb muss dieser
+-- Snapshot bei nachträglichen Änderungen (Notfall-Modul-Add/Remove, Gruppen-Rule/
+-- Blocking-Edit, Gruppenwechsel) nur best-effort für noch nicht final abgestimmte
+-- Studenten aktualisiert werden, nicht zwingend/synchron.
+-- Liegt bewusst in Postgres statt Redis (dauerhafter Fakt der Wahl über den ganzen
+-- Lifecycle, relational gejoint), nicht als ephemeres/vergleichbares Simulations-
+-- ergebnis wie die Allocation-Runs.
+-- Vote-App joint dies mit modules (für weiterhin live editierbare Metadaten:
+-- Bild/Beschreibung/min/max); Notfall-Remove braucht hier keine Änderung, da
+-- über modules.withdrawn_at gefiltert wird.
+- student_id:  uuid  PK  FK→students
+- module_id:   uuid  PK  FK→modules
+- project_id:  uuid  FK→projects
 
 ### student_preferences
 - student_id:  uuid  PK  FK→students

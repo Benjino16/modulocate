@@ -31,14 +31,14 @@ At its core, the app is a **state machine** — each phase locks certain data ag
 - **State:** everything editable, no locks.
 
 ### Phase 2 — Election Starts (`open`)
-- When the election starts, **not everything** is frozen — only what specifically must not change during the running election without creating inconsistencies:
-  - **The set of modules itself** (which modules exist at all) — no adding/deleting modules during the election.
-  - **Blacklists** for certain classes/students (who is not allowed to see/choose which modules) — these must not suddenly change during the running election, otherwise students would have seen different options at different points in time.
+- When the election starts, **not everything** is frozen — and what *is* locked by default is a fairness/policy choice, not a technical necessity. The allocator never trusts frozen state anyway; it re-derives eligibility live at computation time regardless (see "Live Resolution Instead of Frozen State" below):
+  - **The set of modules** and **group/student rules & blocking** are locked *by default* — students who vote at different points in time should see the same option set. Both remain changeable through an explicit, audit-logged admin action ("emergency override," e.g. a teacher must cancel their module, or a student needs to move between groups) — this is safe for the system to absorb without special-casing the allocation logic, see below.
+  - Whether this default lock can be disabled entirely per election, and how eagerly student-facing option lists refresh after such a change, are open configuration questions — see Section 6.
   - **Not locked** (still editable): metadata such as allowed number of spots per module, image, description. The admin can therefore still adjust these values even after the election has started — they only feed into the allocation calculation (Phase 3), not into what the student sees during the election.
 - The system automatically sends **presigned URLs** by email to all students.
   - Alternative with reduced security: a simple "enter your email" login page (no real auth protection, but acceptable for small/internal elections) — this should be implementable as a **per-election configuration option**, not a global switch.
-- When students open their link, they automatically see the modules available to them (read from the DB, filtered by blacklist/class/year group) and submit their preferences.
-- **State:** module list + blacklists locked, capacity/metadata still editable, student voting open.
+- When students open their link, they automatically see the modules available to them (read from a materialized eligibility snapshot for speed, not resolved live per request — see below) and submit their preferences.
+- **State:** module list + rules/blacklists locked by default (configurable, emergency-override always available and logged), capacity/metadata still editable, student voting open.
 
 ### Phase 3 — Election Closes → Allocation Calculation (`closed` → `allocating`)
 - The election is closed; no further votes can be submitted.
@@ -77,9 +77,34 @@ At its core, the app is a **state machine** — each phase locks certain data ag
 ### Locked Decision: Allocation Rule Model (Sub-Rules instead of OR-Alternatives)
 A rule consists of any number of **sub-rules**, each holding one or more categories. Categories within the same sub-rule are *not* distinct from each other (one module covering all of them satisfies the sub-rule alone); a module may satisfy **at most one sub-rule** of a rule. This single exclusivity constraint replaces two earlier ideas that were considered and rejected:
 - **OR-alternatives between rule paths** — dropped because a greedy, preference-driven allocator has no lookahead: it can accumulate partial progress across multiple competing alternatives without ever completing one, wasting module slots. Real school rules didn't need true disjunctive paths (e.g. "2x Sport OR 1x Sprache+1x Kunst") — see `db_planning.md`.
-- **A separate "distinct-group" flag/table alongside plain category+count requirements** — dropped because two overlapping groups referencing a shared category (e.g. `{Sprache,Kunst}` and `{Kunst,Musik}`) created unresolvable ambiguity over whether distinctness is transitive (does Sprache≠Kunst and Kunst≠Musik imply Sprache≠Musik?). The sub-rule model can't express that ambiguous state at all — the same category simply can't be reused across sub-rules by construction.
+- **A separate "distinct-group" flag/table alongside plain category+count requirements** — dropped because two overlapping groups referencing a shared category (e.g. `{Sprache,Kunst}` and `{Kunst,Musik}`) created unresolvable ambiguity over whether distinctness is transitive (does Sprache≠Kunst and Kunst≠Musik imply Sprache≠Musik?). The sub-rule model sidesteps that ambiguity entirely by not needing a "distinctness" concept at all: exclusivity is enforced once, at allocation time, on *assigned modules* ("a module may satisfy at most one sub-rule") — never on the sub-rules' category sets. **A category may therefore repeat freely across sub-rules of the same rule** — that's the intended way to express a count without a count field: "2x Sport" is two sub-rules that each hold just `{Sport}` (see `db_planning.md`'s `category_in_sub_rule` comment and `AllocationSubRule` in `packages/allocation-engine/src/types.ts`).
 
 This decision spans three layers that must stay in sync: the DB schema (`rules` → `sub_rules` → `category_in_sub_rule` in `db_planning.md`), the `AllocationRule`/`AllocationSubRule` types in `packages/allocation-engine`, and any future rule-editing UI. Changing the rule model again later means touching all three — treat it as a stable foundation, not something to casually adjust in just one layer.
+
+### Locked Decision: Live Resolution Instead of Frozen State
+
+The system's correctness never depends on frozen state. Whenever the worker assembles an `AllocationInput` for a run (Phase 3, and every re-run in Phase 3/4), it re-derives each student's eligibility **fresh from the current blocking tables** (`group_blocked_category`/`group_blocked_module`/`student_blocked_category`/`student_blocked_module`, `category_includes_category` composition, current group membership, current rule override) and filters/cross-checks `student_preferences` against that live result — every run, not only after an admin makes an emergency change. `AllocationStudent.preferences`'s type comment, *"only modules the student was allowed to see"* (`packages/allocation-engine/src/types.ts`), is a contract the input-assembly layer (worker) must actively enforce — the allocation engine itself stays a pure function with no DB access (Section 5) and simply trusts whatever input it's handed.
+
+This one principle is what makes retroactive changes safe in general, not just for modules:
+
+- **Module add/remove**, **editing a group's rule/blocking config**, and **moving a student between groups** all change a student's effective eligibility/rule-set — and all of them are handled correctly by the live-resolution step regardless of when they happen relative to the vote, because the allocator was never trusting a frozen snapshot of that state to begin with.
+- **A student leaving the election entirely** (soft-delete, e.g. `students.deleted_at`) needs no reasoning at all: it touches only that student's own row-tree, has zero effect on anyone else's data, and — before Phase 4 — doesn't even free or block a capacity slot, since slots are only consumed via `student_in_module`.
+- What every such action still requires, mechanically: (1) **mandatory** — an audit log entry (who/what/when/for whom), which is about accountability if a result is later disputed, not about correctness; (2) **optional/best-effort** — refreshing the `student_eligible_module` snapshot (see below) for students who haven't voted yet, purely so the vote UI shows them accurate options going forward. Skippable for students who already submitted: their preference rows are left untouched either way, and it's the live-resolution step at allocation time that actually guarantees correctness, not the snapshot.
+
+Module-specific mechanics carried over from the original design:
+- **Remove:** soft-delete via a `withdrawn_at` timestamp on `modules`, never a hard delete — preserves FK integrity for existing `student_preferences`/snapshot rows. Vote app and allocator both filter `withdrawn_at IS NULL`. Students who already ranked the withdrawn module keep their (now inert) preference row — `AllocationPreference.rank` is a sparse ordering, not a contiguous sequence, so no renumbering is needed. Resulting rule violations surface through the existing `AllocationIssue` mechanism for manual handling in Phase 4.
+- **Add:** the module is added to a student's `eligibleModuleIds` **without** a synthetic preference/rank entry — `AllocationStudent` already distinguishes `preferences` (actively ranked) from `eligibleModuleIds` (merely allowed to see). The allocator treats "eligible but unranked" as lowest priority: only assigned to satisfy a mandatory rule/sub-rule or fill otherwise-unfillable capacity, never displacing an actively-ranked module. This must be a first-class case in the allocator's design from the start, since the engine isn't implemented yet.
+- Both are deliberately backend-only/invisible to students until results are published, avoiding the fairness problem the default lock guards against: students voting at different times must not end up seeing different option sets.
+
+### Locked Decision: Student Eligibility Snapshot — Read Optimization, Not a Correctness Gate
+
+At the `setup → open` transition (and optionally refreshed later, see above), the backend resolves blocking once per student and persists the result as a plain Postgres table (working name `student_eligible_module`, scoped by `project_id`) — purely so the vote app has a fast, simple "who is allowed to see what" lookup instead of resolving the full blocking chain on every page load.
+
+- **This table is explicitly not trusted by the allocator** — see "Live Resolution Instead of Frozen State" above. That's what resolves the sync problem a materialized snapshot would otherwise create: it doesn't need to be kept perfectly in lockstep with every admin edit, because it isn't the thing guaranteeing correctness.
+- **Why Postgres, not Redis:** still a durable fact needed across the whole `open → allocating → reviewing → finalized` lifecycle and joined relationally against `students`/`modules`/`preferences`/`rules` (vote page, admin dashboards, later audit) — unlike the Phase 3 allocation runs, which are deliberately ephemeral/comparable and belong in Redis.
+- **Read path:** the vote app queries this table for membership, joined at request time with the live-editable `modules` fields (image/description/min/max).
+- **Refresh cadence is a policy knob, not a correctness requirement:** whether it updates immediately on an emergency change, on a delay, or never after `open`, only affects how many still-voting students see the latest state before submitting — it has no bearing on the correctness of the final allocation. See Section 6 for whether this should be admin-configurable.
+- Open question carried over from Section 6: whether this table's scope key should be `project_id` alone or needs a separate `election_id` once elections become distinct from projects.
 
 ---
 
@@ -164,6 +189,8 @@ Only after that: better-auth, `packages/allocation-engine` (developable in paral
 - [ ] Specify the presigned-URL mechanism in detail (token format, expiration time, reset/resend flow for a lost link).
 - [ ] Refine the roles/permissions model (admin vs. teacher — may teachers only see/edit their own modules?).
 - [ ] Set up the Docker Compose setup for local development (Postgres, Redis, MinIO, backend, worker).
+- [ ] Should a per-election (or global, super-admin-only) setting allow disabling emergency overrides entirely — a strict "no retroactive changes to modules/rules/groups after election open" mode, for schools that prefer rigidity over flexibility?
+- [ ] Should the eligibility-snapshot refresh cadence (see "Student Eligibility Snapshot" decision above) be admin-configurable per election — e.g. "never" (every student votes under strictly identical conditions) vs. "immediately on change" (maximize how many students see an update before voting)? Since correctness no longer depends on the snapshot, this is a pure fairness/UX trade-off, not a technical constraint.
 
 ---
 
