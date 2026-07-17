@@ -2,9 +2,8 @@ import { z } from "zod";
 
 // Fields a client may set. Deliberately excludes columns that are never client
 // input: `id`/`projectId` (server-assigned/derived from the tRPC context, never
-// trusted from the client), `permanentName` (system-assigned, tracks "the same"
-// module across projects — not something a user types in) and `withdrawnAt`
-// (its own soft-delete mutation, not a regular field edit).
+// trusted from the client) and `permanentName` (system-assigned, tracks "the
+// same" module across projects — not something a user types in).
 const moduleFields = z.object({
   name: z.string().min(1),
   description: z.string().optional(),

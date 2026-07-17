@@ -50,10 +50,6 @@ export const modules = pgTable("modules", {
   pictureUrl: text("picture_url"),
   min: integer("min").notNull(),
   max: integer("max").notNull(),
-  // soft-delete for emergency removal during an open election — vote app and
-  // allocator both filter withdrawnAt IS NULL instead of hard-deleting, so
-  // existing student_preferences/eligibility rows stay valid (see planning.md)
-  withdrawnAt: timestamp("withdrawn_at", { withTimezone: true }),
 });
 
 export const moduleCategories = pgTable("module_categories", {

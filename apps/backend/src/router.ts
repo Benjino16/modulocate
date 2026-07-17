@@ -1,12 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import {
   moduleCreateInput,
   moduleUpdateInput,
   ruleCreateInput,
   ruleUpdateInput,
+  studentCreateInput,
+  studentUpdateInput,
   studentGroupCreateInput,
   studentGroupUpdateInput,
 } from "@modulocate/shared";
@@ -77,14 +79,59 @@ export const appRouter = router({
     list: publicProcedure.input(projectScoped).query(({ input }) =>
       db.select().from(students).where(eq(students.projectId, input.projectId)),
     ),
+
+    get: publicProcedure
+      .input(projectScoped.extend({ id: z.uuid() }))
+      .query(async ({ input }) => {
+        const [student] = await db
+          .select()
+          .from(students)
+          .where(and(eq(students.id, input.id), eq(students.projectId, input.projectId)));
+        if (!student) throw new TRPCError({ code: "NOT_FOUND" });
+        return student;
+      }),
+
+    create: publicProcedure
+      .input(studentCreateInput.and(projectScoped))
+      .mutation(async ({ input }) => {
+        const [student] = await db
+          .insert(students)
+          .values({ ...input, voteStatus: "not_voted" })
+          .returning();
+        return student;
+      }),
+
+    update: publicProcedure
+      .input(studentUpdateInput.and(projectScoped))
+      .mutation(async ({ input }) => {
+        const { id, projectId, ...patch } = input;
+        const [student] = await db
+          .update(students)
+          .set(patch)
+          .where(and(eq(students.id, id), eq(students.projectId, projectId)))
+          .returning();
+        if (!student) throw new TRPCError({ code: "NOT_FOUND" });
+        return student;
+      }),
+
+    // Hard delete. Fails with a DB FK error if preferences/eligibility/blocking
+    // rows still reference the student — deliberately left as the DB default
+    // (no onDelete) rather than guessing a cascade policy; see planning.md.
+    remove: publicProcedure
+      .input(projectScoped.extend({ id: z.uuid() }))
+      .mutation(async ({ input }) => {
+        const [student] = await db
+          .delete(students)
+          .where(and(eq(students.id, input.id), eq(students.projectId, input.projectId)))
+          .returning();
+        if (!student) throw new TRPCError({ code: "NOT_FOUND" });
+        return { id: student.id };
+      }),
   }),
 
   modules: router({
     list: publicProcedure.input(projectScoped).query(({ input }) =>
-      db
-        .select()
-        .from(modules)
-        .where(and(eq(modules.projectId, input.projectId), isNull(modules.withdrawnAt))),
+      db.select().from(modules).where(eq(modules.projectId, input.projectId)),
     ),
 
     get: publicProcedure
@@ -121,17 +168,18 @@ export const appRouter = router({
         return module;
       }),
 
-    // soft-delete only — never a hard delete, see planning.md
-    withdraw: publicProcedure
+    // Hard delete. Fails with a DB FK error if preferences/eligibility/blocking
+    // rows still reference the module — deliberately left as the DB default
+    // (no onDelete) rather than guessing a cascade policy; see planning.md.
+    remove: publicProcedure
       .input(projectScoped.extend({ id: z.uuid() }))
       .mutation(async ({ input }) => {
         const [module] = await db
-          .update(modules)
-          .set({ withdrawnAt: new Date() })
+          .delete(modules)
           .where(and(eq(modules.id, input.id), eq(modules.projectId, input.projectId)))
           .returning();
         if (!module) throw new TRPCError({ code: "NOT_FOUND" });
-        return module;
+        return { id: module.id };
       }),
   }),
 

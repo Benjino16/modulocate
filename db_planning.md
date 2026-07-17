@@ -42,7 +42,6 @@
 - picture_url:     text?
 - min:             int
 - max:             int
-- withdrawn_at:     datetime?  -- soft-delete für Notfall-Entfernen während laufender Wahl (siehe planning.md); Vote/Allocator filtern IS NULL statt hard delete, damit bestehende student_preferences/eligibility-Zeilen valide bleiben
 
 ### module_categories
 - id:          uuid  PK
@@ -174,8 +173,10 @@
 -- Lifecycle, relational gejoint), nicht als ephemeres/vergleichbares Simulations-
 -- ergebnis wie die Allocation-Runs.
 -- Vote-App joint dies mit modules (für weiterhin live editierbare Metadaten:
--- Bild/Beschreibung/min/max); Notfall-Remove braucht hier keine Änderung, da
--- über modules.withdrawn_at gefiltert wird.
+-- Bild/Beschreibung/min/max). Module/Studenten werden hart gelöscht (siehe
+-- planning.md "Hard Delete, No Soft-Delete Fields") — wie mit dadurch
+-- dangelnden Snapshot-Zeilen nach einem Notfall-Remove umgegangen wird, ist
+-- noch offen (siehe Section 6 in planning.md).
 - student_id:  uuid  PK  FK→students
 - module_id:   uuid  PK  FK→modules
 - project_id:  uuid  FK→projects
