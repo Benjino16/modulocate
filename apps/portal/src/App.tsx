@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Button } from "@modulocate/ui/components/button";
 import { trpcClient } from "./trpc";
 
 function App() {
@@ -11,9 +12,12 @@ function App() {
   }, []);
 
   return (
-    <div style={{ padding: "2rem", fontFamily: "sans-serif" }}>
-      <h1>modulocate — portal</h1>
-      <p>Backend status: <strong>{status}</strong></p>
+    <div className="p-8">
+      <h1 className="text-2xl font-semibold">modulocate — portal</h1>
+      <p className="mt-2 text-muted-foreground">
+        Backend status: <strong className="text-foreground">{status}</strong>
+      </p>
+      <Button className="mt-4">Tailwind + shadcn läuft</Button>
     </div>
   );
 }
