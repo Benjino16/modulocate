@@ -381,10 +381,13 @@ export const appRouter = router({
             .values({ projectId: input.projectId, name: input.name })
             .returning();
 
-          const insertedSubRules = await tx
-            .insert(subRules)
-            .values(input.subRules.map(() => ({ ruleId: rule.id, projectId: input.projectId })))
-            .returning();
+          const insertedSubRules =
+            input.subRules.length > 0
+              ? await tx
+                  .insert(subRules)
+                  .values(input.subRules.map(() => ({ ruleId: rule.id, projectId: input.projectId })))
+                  .returning()
+              : [];
 
           const categoryRows = insertedSubRules.flatMap((subRule, i) =>
             input.subRules[i].categoryIds.map((categoryId) => ({
@@ -434,10 +437,13 @@ export const appRouter = router({
 
           await tx.delete(subRules).where(eq(subRules.ruleId, input.id));
 
-          const insertedSubRules = await tx
-            .insert(subRules)
-            .values(input.subRules.map(() => ({ ruleId: input.id, projectId: input.projectId })))
-            .returning();
+          const insertedSubRules =
+            input.subRules.length > 0
+              ? await tx
+                  .insert(subRules)
+                  .values(input.subRules.map(() => ({ ruleId: input.id, projectId: input.projectId })))
+                  .returning()
+              : [];
 
           const categoryRows = insertedSubRules.flatMap((subRule, i) =>
             input.subRules![i].categoryIds.map((categoryId) => ({

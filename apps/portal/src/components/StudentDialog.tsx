@@ -25,19 +25,22 @@ type Student = {
   email: string;
   email2: string | null;
   groupId: string | null;
+  ruleId: string | null;
 };
 
 const NO_GROUP = "none";
+const NO_RULE = "none";
 
-type FormState = { name: string; email: string; email2: string; groupId: string };
+type FormState = { name: string; email: string; email2: string; groupId: string; ruleId: string };
 
 function formStateFor(student: Student | undefined): FormState {
-  if (!student) return { name: "", email: "", email2: "", groupId: NO_GROUP };
+  if (!student) return { name: "", email: "", email2: "", groupId: NO_GROUP, ruleId: NO_RULE };
   return {
     name: student.name,
     email: student.email,
     email2: student.email2 ?? "",
     groupId: student.groupId ?? NO_GROUP,
+    ruleId: student.ruleId ?? NO_RULE,
   };
 }
 
@@ -66,6 +69,11 @@ export function StudentDialog({
 
   const { data: groups } = useQuery({
     ...trpc.studentGroups.list.queryOptions({ projectId }),
+    enabled: open,
+  });
+
+  const { data: rules } = useQuery({
+    ...trpc.rules.list.queryOptions({ projectId }),
     enabled: open,
   });
 
@@ -117,6 +125,7 @@ export function StudentDialog({
       email: form.email.trim(),
       email2: form.email2.trim() || undefined,
       groupId: form.groupId === NO_GROUP ? null : form.groupId,
+      ruleId: form.ruleId === NO_RULE ? null : form.ruleId,
     };
 
     if (student) {
@@ -182,6 +191,23 @@ export function StudentDialog({
                 {groups?.map((group) => (
                   <SelectItem key={group.id} value={group.id}>
                     {group.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="student-rule">Regel</Label>
+            <Select value={form.ruleId} onValueChange={(ruleId) => setForm({ ...form, ruleId })}>
+              <SelectTrigger id="student-rule">
+                <SelectValue placeholder="Keine Regel" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_RULE}>Keine Regel</SelectItem>
+                {rules?.map((rule) => (
+                  <SelectItem key={rule.id} value={rule.id}>
+                    {rule.name}
                   </SelectItem>
                 ))}
               </SelectContent>

@@ -17,7 +17,10 @@ const subRuleInput = z.object({
 
 const ruleFields = z.object({
   name: z.string().min(1),
-  subRules: z.array(subRuleInput).min(1),
+  // Empty by default — sub-rule/category authoring is deferred, same as
+  // module/category/date relations (see db_planning.md); a rule can exist
+  // with just a name until that UI lands.
+  subRules: z.array(subRuleInput).default([]),
 });
 
 export const ruleCreateInput = ruleFields;

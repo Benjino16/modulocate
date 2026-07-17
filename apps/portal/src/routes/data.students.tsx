@@ -26,6 +26,7 @@ type Student = {
   email2: string | null;
   groupId: string | null;
   groupName: string | null;
+  ruleId: string | null;
   voteStatus: string;
 };
 
