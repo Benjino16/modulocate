@@ -29,6 +29,11 @@ export const auditLogs = pgTable("audit_logs", {
 export const projects = pgTable("projects", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
+  // setup -> open -> closed -> allocating -> reviewing -> finalized -> published
+  // (see planning.md "Locked Decision: `phase` Column on `projects`") — text +
+  // Zod enum (packages/shared), not a Postgres enum type, so a new phase name
+  // never needs a migration, only a validator change.
+  phase: text("phase").notNull().default("setup"),
 });
 
 export const settings = pgTable("settings", {
@@ -220,16 +225,9 @@ export const ruleBlockedDate = pgTable(
 );
 
 // --- Voting & Allocation ---
-
-export const studentEligibleModule = pgTable(
-  "student_eligible_module",
-  {
-    studentId: uuid("student_id").notNull().references(() => students.id),
-    moduleId: uuid("module_id").notNull().references(() => modules.id),
-    projectId: uuid("project_id").notNull().references(() => projects.id),
-  },
-  (table) => [primaryKey({ columns: [table.studentId, table.moduleId] })],
-);
+// No student_eligible_module snapshot table — eligibility is resolved live
+// per request (see planning.md "Deferred Decision: Live Resolution for the
+// Vote App — No Snapshot Table (Yet)").
 
 export const studentPreferences = pgTable(
   "student_preferences",

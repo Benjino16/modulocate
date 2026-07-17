@@ -67,8 +67,13 @@ export interface AllocationStudent {
   groupIds: GroupId[];
   ruleId: RuleId | null; // resolved: student.rule_id overrides group.rule_id
   preferences: AllocationPreference[]; // only modules the student was allowed to see
-  eligibleModuleIds: ModuleId[]; // resolved: modules not excluded by the effective rule's blocked category/module/date (composition-resolved)
-  blockedDateIds: DateId[]; // resolved: the effective rule's blocked dates, for schedule-conflict checks alongside module.dateIds
+  // resolved: modules not excluded by the effective rule's blocked category/module/date
+  // (composition-resolved). A blocked date has no separate representation here — it
+  // resolves to "every module on that date" via module_in_date, exactly like a blocked
+  // category resolves via module_in_category, so it fully collapses into this list.
+  // Genuine schedule conflict between two different eligible modules (neither individually
+  // blocked) is a separate concern, checked directly via AllocationModule.dateIds.
+  eligibleModuleIds: ModuleId[];
 }
 
 // --- Input ---

@@ -127,22 +127,29 @@ export const studentsRouter = router({
   sendVotingInvites: publicProcedure
     .input(projectScoped.extend({ studentIds: z.array(z.uuid()).optional() }))
     .mutation(async ({ input }) => {
-      const recipients = await loadStudents(db, input.projectId, input.studentIds);
-      const missingCode = recipients.filter((s) => !s.signInCode);
-      if (missingCode.length > 0) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: `${missingCode.length} Schüler:innen haben noch keinen Sign-in-Code.`,
-        });
-      }
-
-      await getEmailQueue().addBulk(
-        recipients.map((student) => ({
-          name: EmailJobName.VotingInvite,
-          data: { studentId: student.id, projectId: input.projectId },
-        })),
-      );
-
-      return { enqueued: recipients.length };
+      const enqueued = await enqueueVotingInvites(input.projectId, input.studentIds);
+      return { enqueued };
     }),
 });
+
+// Shared with projects.startElection, which sends invites to every student
+// right after minting sign-in codes for the ones that didn't have one yet.
+export async function enqueueVotingInvites(projectId: string, studentIds?: string[]) {
+  const recipients = await loadStudents(db, projectId, studentIds);
+  const missingCode = recipients.filter((s) => !s.signInCode);
+  if (missingCode.length > 0) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: `${missingCode.length} Schüler:innen haben noch keinen Sign-in-Code.`,
+    });
+  }
+
+  await getEmailQueue().addBulk(
+    recipients.map((student) => ({
+      name: EmailJobName.VotingInvite,
+      data: { studentId: student.id, projectId },
+    })),
+  );
+
+  return recipients.length;
+}
