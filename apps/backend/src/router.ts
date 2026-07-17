@@ -3,8 +3,12 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { and, eq, inArray } from "drizzle-orm";
 import {
+  dateCreateInput,
+  dateUpdateInput,
   moduleCreateInput,
   moduleUpdateInput,
+  moduleCategoryCreateInput,
+  moduleCategoryUpdateInput,
   ruleCreateInput,
   ruleUpdateInput,
   studentCreateInput,
@@ -14,7 +18,18 @@ import {
 } from "@modulocate/shared";
 import { router, publicProcedure } from "./trpc";
 import { db } from "./db";
-import { modules, rules, subRules, categoryInSubRule, studentGroups, students, projects } from "./db/schema";
+import {
+  dates,
+  modules,
+  moduleCategories,
+  rules,
+  subRules,
+  categoryInSubRule,
+  studentGroups,
+  studentInGroup,
+  students,
+  projects,
+} from "./db/schema";
 
 // Stopgap until auth/project-context middleware exists: projectId is an
 // explicit input instead of being derived from ctx. Once a session carries
@@ -64,6 +79,38 @@ async function loadRules(projectId: string, ids?: string[]) {
   }));
 }
 
+// db itself or an open transaction — whatever `db.transaction(async (tx) => ...)` hands back.
+type DbExecutor = typeof db | Parameters<Parameters<(typeof db)["transaction"]>[0]>[0];
+
+// Attaches each student's "Klasse" (single student_in_group membership, left-
+// joined so students without one still come back) — see groupId's comment in
+// packages/shared/src/student.ts for why this isn't a plain column. Takes an
+// explicit executor (db or an open tx) so callers inside a transaction read
+// their own uncommitted writes instead of racing the outer connection.
+async function loadStudents(executor: DbExecutor, projectId: string, ids?: string[]) {
+  return executor
+    .select({
+      id: students.id,
+      projectId: students.projectId,
+      name: students.name,
+      email: students.email,
+      email2: students.email2,
+      signInCode: students.signInCode,
+      voteStatus: students.voteStatus,
+      ruleId: students.ruleId,
+      groupId: studentGroups.id,
+      groupName: studentGroups.name,
+    })
+    .from(students)
+    .leftJoin(studentInGroup, eq(studentInGroup.studentId, students.id))
+    .leftJoin(studentGroups, eq(studentGroups.id, studentInGroup.groupId))
+    .where(
+      ids
+        ? and(eq(students.projectId, projectId), inArray(students.id, ids))
+        : eq(students.projectId, projectId),
+    );
+}
+
 export const appRouter = router({
   health: publicProcedure.query(() => {
     return { status: "ok" as const };
@@ -76,17 +123,12 @@ export const appRouter = router({
   }),
 
   students: router({
-    list: publicProcedure.input(projectScoped).query(({ input }) =>
-      db.select().from(students).where(eq(students.projectId, input.projectId)),
-    ),
+    list: publicProcedure.input(projectScoped).query(({ input }) => loadStudents(db, input.projectId)),
 
     get: publicProcedure
       .input(projectScoped.extend({ id: z.uuid() }))
       .query(async ({ input }) => {
-        const [student] = await db
-          .select()
-          .from(students)
-          .where(and(eq(students.id, input.id), eq(students.projectId, input.projectId)));
+        const [student] = await loadStudents(db, input.projectId, [input.id]);
         if (!student) throw new TRPCError({ code: "NOT_FOUND" });
         return student;
       }),
@@ -94,36 +136,72 @@ export const appRouter = router({
     create: publicProcedure
       .input(studentCreateInput.and(projectScoped))
       .mutation(async ({ input }) => {
-        const [student] = await db
-          .insert(students)
-          .values({ ...input, voteStatus: "not_voted" })
-          .returning();
-        return student;
+        const { groupId, ...rest } = input;
+        return db.transaction(async (tx) => {
+          const [student] = await tx
+            .insert(students)
+            .values({ ...rest, voteStatus: "not_voted" })
+            .returning();
+          if (groupId) {
+            await tx.insert(studentInGroup).values({ studentId: student.id, groupId, projectId: input.projectId });
+          }
+          const [full] = await loadStudents(tx, input.projectId, [student.id]);
+          return full;
+        });
       }),
 
     update: publicProcedure
       .input(studentUpdateInput.and(projectScoped))
       .mutation(async ({ input }) => {
-        const { id, projectId, ...patch } = input;
-        const [student] = await db
-          .update(students)
-          .set(patch)
-          .where(and(eq(students.id, id), eq(students.projectId, projectId)))
-          .returning();
-        if (!student) throw new TRPCError({ code: "NOT_FOUND" });
-        return student;
+        const { id, projectId, groupId, ...patch } = input;
+        return db.transaction(async (tx) => {
+          // groupId-only updates leave `patch` empty — drizzle's .set({}) throws,
+          // so skip the column update and just confirm the row exists.
+          const [student] =
+            Object.keys(patch).length > 0
+              ? await tx
+                  .update(students)
+                  .set(patch)
+                  .where(and(eq(students.id, id), eq(students.projectId, projectId)))
+                  .returning()
+              : await tx
+                  .select()
+                  .from(students)
+                  .where(and(eq(students.id, id), eq(students.projectId, projectId)));
+          if (!student) throw new TRPCError({ code: "NOT_FOUND" });
+
+          if (groupId !== undefined) {
+            await tx
+              .delete(studentInGroup)
+              .where(and(eq(studentInGroup.studentId, id), eq(studentInGroup.projectId, projectId)));
+            if (groupId) {
+              await tx.insert(studentInGroup).values({ studentId: id, groupId, projectId });
+            }
+          }
+
+          const [full] = await loadStudents(tx, projectId, [id]);
+          return full;
+        });
       }),
 
-    // Hard delete. Fails with a DB FK error if preferences/eligibility/blocking
-    // rows still reference the student — deliberately left as the DB default
-    // (no onDelete) rather than guessing a cascade policy; see planning.md.
+    // Hard delete. The student's own group membership is cleared first since
+    // "Klasse" is a routine field here (not allocation-engine state) — leaving
+    // it would FK-fail every delete for any student with a class set. Still
+    // fails with a DB FK error if preferences/eligibility/blocking rows still
+    // reference the student — deliberately left as the DB default (no
+    // onDelete) rather than guessing a cascade policy; see planning.md.
     remove: publicProcedure
       .input(projectScoped.extend({ id: z.uuid() }))
       .mutation(async ({ input }) => {
-        const [student] = await db
-          .delete(students)
-          .where(and(eq(students.id, input.id), eq(students.projectId, input.projectId)))
-          .returning();
+        const [student] = await db.transaction(async (tx) => {
+          await tx
+            .delete(studentInGroup)
+            .where(and(eq(studentInGroup.studentId, input.id), eq(studentInGroup.projectId, input.projectId)));
+          return tx
+            .delete(students)
+            .where(and(eq(students.id, input.id), eq(students.projectId, input.projectId)))
+            .returning();
+        });
         if (!student) throw new TRPCError({ code: "NOT_FOUND" });
         return { id: student.id };
       }),
@@ -180,6 +258,106 @@ export const appRouter = router({
           .returning();
         if (!module) throw new TRPCError({ code: "NOT_FOUND" });
         return { id: module.id };
+      }),
+  }),
+
+  moduleCategories: router({
+    list: publicProcedure.input(projectScoped).query(({ input }) =>
+      db.select().from(moduleCategories).where(eq(moduleCategories.projectId, input.projectId)),
+    ),
+
+    get: publicProcedure
+      .input(projectScoped.extend({ id: z.uuid() }))
+      .query(async ({ input }) => {
+        const [category] = await db
+          .select()
+          .from(moduleCategories)
+          .where(and(eq(moduleCategories.id, input.id), eq(moduleCategories.projectId, input.projectId)));
+        if (!category) throw new TRPCError({ code: "NOT_FOUND" });
+        return category;
+      }),
+
+    create: publicProcedure
+      .input(moduleCategoryCreateInput.and(projectScoped))
+      .mutation(async ({ input }) => {
+        const [category] = await db.insert(moduleCategories).values(input).returning();
+        return category;
+      }),
+
+    update: publicProcedure
+      .input(moduleCategoryUpdateInput.and(projectScoped))
+      .mutation(async ({ input }) => {
+        const { id, projectId, ...patch } = input;
+        const [category] = await db
+          .update(moduleCategories)
+          .set(patch)
+          .where(and(eq(moduleCategories.id, id), eq(moduleCategories.projectId, projectId)))
+          .returning();
+        if (!category) throw new TRPCError({ code: "NOT_FOUND" });
+        return category;
+      }),
+
+    // Hard delete. Fails with a DB FK error if modules/sub-rules/blocking rows
+    // still reference the category — same reasoning as modules.remove above.
+    remove: publicProcedure
+      .input(projectScoped.extend({ id: z.uuid() }))
+      .mutation(async ({ input }) => {
+        const [category] = await db
+          .delete(moduleCategories)
+          .where(and(eq(moduleCategories.id, input.id), eq(moduleCategories.projectId, input.projectId)))
+          .returning();
+        if (!category) throw new TRPCError({ code: "NOT_FOUND" });
+        return { id: category.id };
+      }),
+  }),
+
+  dates: router({
+    list: publicProcedure.input(projectScoped).query(({ input }) =>
+      db.select().from(dates).where(eq(dates.projectId, input.projectId)),
+    ),
+
+    get: publicProcedure
+      .input(projectScoped.extend({ id: z.uuid() }))
+      .query(async ({ input }) => {
+        const [date] = await db
+          .select()
+          .from(dates)
+          .where(and(eq(dates.id, input.id), eq(dates.projectId, input.projectId)));
+        if (!date) throw new TRPCError({ code: "NOT_FOUND" });
+        return date;
+      }),
+
+    create: publicProcedure
+      .input(dateCreateInput.and(projectScoped))
+      .mutation(async ({ input }) => {
+        const [date] = await db.insert(dates).values(input).returning();
+        return date;
+      }),
+
+    update: publicProcedure
+      .input(dateUpdateInput.and(projectScoped))
+      .mutation(async ({ input }) => {
+        const { id, projectId, ...patch } = input;
+        const [date] = await db
+          .update(dates)
+          .set(patch)
+          .where(and(eq(dates.id, id), eq(dates.projectId, projectId)))
+          .returning();
+        if (!date) throw new TRPCError({ code: "NOT_FOUND" });
+        return date;
+      }),
+
+    // Hard delete. Fails with a DB FK error if modules/blocking rows still
+    // reference the date — same reasoning as modules.remove above.
+    remove: publicProcedure
+      .input(projectScoped.extend({ id: z.uuid() }))
+      .mutation(async ({ input }) => {
+        const [date] = await db
+          .delete(dates)
+          .where(and(eq(dates.id, input.id), eq(dates.projectId, input.projectId)))
+          .returning();
+        if (!date) throw new TRPCError({ code: "NOT_FOUND" });
+        return { id: date.id };
       }),
   }),
 

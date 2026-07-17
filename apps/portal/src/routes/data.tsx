@@ -7,6 +7,8 @@ export const Route = createFileRoute("/data")({
 
 const tabs = [
   { to: "/data/modules", label: "Module" },
+  { to: "/data/categories", label: "Kategorien" },
+  { to: "/data/dates", label: "Termine" },
   { to: "/data/students", label: "Schüler" },
   { to: "/data/rules", label: "Regeln" },
   { to: "/data/groups", label: "Gruppen" },

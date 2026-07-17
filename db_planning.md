@@ -32,6 +32,23 @@
 - key:          text
 - value:        jsonb
 
+### date_sort_tags
+-- Reine UI-Sortier-/Gruppierungs-Buckets ("Q1", "Q2", ...), bewusst getrennt von `dates`/
+-- `module_in_date`: diese Tags fließen nie in Rules/Blocking/Allocation ein, sondern dienen
+-- nur der Darstellung ("alle Module des 1. Quartals"). Eine geteilte Zeile statt eines freien
+-- Strings auf `modules`, damit "Q1" -> "Quartal 1" umbenennen eine Zeile ändert, nicht jedes Modul.
+- id:          uuid  PK
+- project_id:  uuid  FK→projects
+- label:       text
+- sort_order:  int   (explizite Reihenfolge, damit z.B. "Q10" nicht alphabetisch vor "Q2" sortiert)
+
+### category_sort_tags
+-- analog zu date_sort_tags, nur für Categories ("Musik", "Sport", ...) statt Dates.
+- id:          uuid  PK
+- project_id:  uuid  FK→projects
+- label:       text
+- sort_order:  int
+
 ### modules
 - id:              uuid   PK
 - project_id:      uuid   FK→projects
@@ -42,6 +59,11 @@
 - picture_url:     text?
 - min:             int
 - max:             int
+- schedule_label:  text?  (kurze Freitext-Anzeige wie "Jeden Montag", "Q2 - Mi" oder "Block" fürs
+                           Modul-Tile — bewusst freier Text pro Modul, da hier auch Abweichungen
+                           vom Standardfall reinpassen)
+- date_sort_id:      uuid?  FK→date_sort_tags      (UI-Sortier-Bucket, z.B. "Q1" ohne Wochentag)
+- category_sort_id:  uuid?  FK→category_sort_tags  (UI-Sortier-Bucket, z.B. "Musik")
 
 ### module_categories
 - id:          uuid  PK
@@ -86,6 +108,14 @@
 - id:          uuid  PK
 - project_id:  uuid  FK→projects
 - name:        text
+
+### module_in_date
+-- ein Modul kann an mehreren Dates stattfinden (und ein Date von mehreren Modulen belegt sein) —
+-- diese Relation fehlte bisher komplett; module_in_category dient als Vorbild für den Aufbau.
+-- Damit lässt sich später prüfen, ob sich zwei Module über die belegten Dates hinweg überschneiden.
+- module_id:   uuid  PK  FK→modules
+- date_id:     uuid  PK  FK→dates
+- project_id:  uuid  FK→projects
 
 ### rules
 - id:          uuid  PK

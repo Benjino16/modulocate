@@ -39,6 +39,25 @@ export const settings = pgTable("settings", {
   value: jsonb("value").notNull(),
 });
 
+// Lightweight lookup tags purely for UI sort/grouping (e.g. "all Q1 modules"),
+// deliberately decoupled from `dates`/`module_categories` — those drive rules
+// and blocking, these two never touch the allocation engine. A shared row (not
+// a free string on `modules`) means renaming "Q1" -> "Quartal 1" is one edit,
+// not a pass over every module.
+export const dateSortTags = pgTable("date_sort_tags", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  projectId: uuid("project_id").notNull().references(() => projects.id),
+  label: text("label").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+});
+
+export const categorySortTags = pgTable("category_sort_tags", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  projectId: uuid("project_id").notNull().references(() => projects.id),
+  label: text("label").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+});
+
 export const modules = pgTable("modules", {
   id: uuid("id").primaryKey().defaultRandom(),
   projectId: uuid("project_id").notNull().references(() => projects.id),
@@ -50,6 +69,14 @@ export const modules = pgTable("modules", {
   pictureUrl: text("picture_url"),
   min: integer("min").notNull(),
   max: integer("max").notNull(),
+  // short freeform display string ("Jeden Montag", "Q2 - Mi", "Block") for the
+  // module tile — deliberately per-module free text, since it's also where
+  // one-off deviations from the norm get written down
+  scheduleLabel: text("schedule_label"),
+  // UI-only sort/group buckets, e.g. "Q1" or "Musik" without the weekday/
+  // sub-category noise — see dateSortTags/categorySortTags above
+  dateSortId: uuid("date_sort_id").references(() => dateSortTags.id),
+  categorySortId: uuid("category_sort_id").references(() => categorySortTags.id),
 });
 
 export const moduleCategories = pgTable("module_categories", {
@@ -142,6 +169,16 @@ export const dates = pgTable("dates", {
   projectId: uuid("project_id").notNull().references(() => projects.id),
   name: text("name").notNull(),
 });
+
+export const moduleInDate = pgTable(
+  "module_in_date",
+  {
+    moduleId: uuid("module_id").notNull().references(() => modules.id),
+    dateId: uuid("date_id").notNull().references(() => dates.id),
+    projectId: uuid("project_id").notNull().references(() => projects.id),
+  },
+  (table) => [primaryKey({ columns: [table.moduleId, table.dateId] })],
+);
 
 // --- Blocking ---
 // group_*/student_* pairs share the same shape: isBlocked=true blocks, false is an

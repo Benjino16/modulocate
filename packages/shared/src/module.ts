@@ -11,6 +11,9 @@ const moduleFields = z.object({
   pictureUrl: z.url().optional(),
   min: z.number().int().nonnegative(),
   max: z.number().int().nonnegative(),
+  scheduleLabel: z.string().optional(),
+  dateSortId: z.uuid().optional(),
+  categorySortId: z.uuid().optional(),
 });
 
 export const moduleCreateInput = moduleFields.refine((data) => data.max >= data.min, {

@@ -9,6 +9,9 @@ const studentFields = z.object({
   email: z.email(),
   email2: z.email().nullable().optional(),
   ruleId: z.uuid().nullable().optional(),
+  // "Klasse" in the UI — not a column on students, the router resolves this
+  // against student_in_group (single membership, wholesale-replaced on update).
+  groupId: z.uuid().nullable().optional(),
 });
 
 export const studentCreateInput = studentFields;
