@@ -1,5 +1,5 @@
 {
-  "name": "@modulocate/backend",
+  "name": "@modulocate/worker",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -7,24 +7,16 @@
     "dev": "tsx watch src/index.ts"
   },
   "dependencies": {
-    "@fastify/cors": "^11.3.0",
     "@modulocate/db": "workspace:*",
     "@modulocate/mailer": "workspace:*",
     "@modulocate/queue": "workspace:*",
-    "@modulocate/shared": "workspace:*",
-    "@trpc/server": "^11.18.0",
+    "bullmq": "^5.80.5",
     "dotenv": "^17.4.2",
-    "drizzle-orm": "^0.45.2",
-    "fastify": "^5.10.0",
-    "zod": "^4.4.3"
+    "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",
     "tsx": "^4.23.1",
     "typescript": "^7.0.2"
-  },
-  "exports": {
-    ".": "./src/index.ts",
-    "./router": "./src/router.ts"
   }
 }

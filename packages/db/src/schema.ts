@@ -282,3 +282,20 @@ export const studentInModule = pgTable(
   },
   (table) => [primaryKey({ columns: [table.studentId, table.moduleId] })],
 );
+
+// --- Email ---
+
+// Durable send history, written by the worker after a job finishes — BullMQ's
+// own Redis-side job records are operational state and get pruned, this is
+// the queryable log the portal reads for delivery status.
+export const emailLog = pgTable("email_log", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  projectId: uuid("project_id").references(() => projects.id),
+  studentId: uuid("student_id").references(() => students.id),
+  userId: uuid("user_id").references(() => users.id),
+  type: text("type").notNull(),
+  recipient: text("recipient").notNull(),
+  status: text("status").notNull(),
+  error: text("error"),
+  sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+});

@@ -2,9 +2,8 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { and, eq } from "drizzle-orm";
 import { dateCreateInput, dateUpdateInput } from "@modulocate/shared";
+import { db, dates } from "@modulocate/db";
 import { router, publicProcedure } from "../trpc";
-import { db } from "../db";
-import { dates } from "../db/schema";
 import { projectScoped } from "./shared";
 
 export const datesRouter = router({

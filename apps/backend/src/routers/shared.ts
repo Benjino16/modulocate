@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { db } from "../db";
+import { db } from "@modulocate/db";
 
 // Stopgap until auth/project-context middleware exists: projectId is an
 // explicit input instead of being derived from ctx. Once a session carries

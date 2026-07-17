@@ -2,9 +2,8 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { and, eq, inArray } from "drizzle-orm";
 import { ruleCreateInput, ruleUpdateInput } from "@modulocate/shared";
+import { db, rules, subRules, categoryInSubRule } from "@modulocate/db";
 import { router, publicProcedure } from "../trpc";
-import { db } from "../db";
-import { rules, subRules, categoryInSubRule } from "../db/schema";
 import { projectScoped } from "./shared";
 
 // Batch-loads rules with their nested sub-rules/categoryIds for a project (or a

@@ -3,9 +3,8 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { and, eq } from "drizzle-orm";
 import { moduleCreateInput, moduleUpdateInput } from "@modulocate/shared";
+import { db, modules } from "@modulocate/db";
 import { router, publicProcedure } from "../trpc";
-import { db } from "../db";
-import { modules } from "../db/schema";
 import { projectScoped } from "./shared";
 
 export const modulesRouter = router({

@@ -2,9 +2,9 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { and, eq, inArray } from "drizzle-orm";
 import { studentCreateInput, studentUpdateInput } from "@modulocate/shared";
+import { db, studentGroups, studentInGroup, students } from "@modulocate/db";
+import { EmailJobName, getEmailQueue } from "@modulocate/queue";
 import { router, publicProcedure } from "../trpc";
-import { db } from "../db";
-import { studentGroups, studentInGroup, students } from "../db/schema";
 import { projectScoped, type DbExecutor } from "./shared";
 
 // Attaches each student's "Klasse" (single student_in_group membership, left-
@@ -118,5 +118,31 @@ export const studentsRouter = router({
       });
       if (!student) throw new TRPCError({ code: "NOT_FOUND" });
       return { id: student.id };
+    }),
+
+  // Enqueues one job per student (not one job for the whole project) so a bad
+  // address only retries itself and the worker's rate limiter throttles the
+  // whole batch against SMTP limits. Returns immediately — see email_log for
+  // delivery status once the worker processes the batch.
+  sendVotingInvites: publicProcedure
+    .input(projectScoped.extend({ studentIds: z.array(z.uuid()).optional() }))
+    .mutation(async ({ input }) => {
+      const recipients = await loadStudents(db, input.projectId, input.studentIds);
+      const missingCode = recipients.filter((s) => !s.signInCode);
+      if (missingCode.length > 0) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: `${missingCode.length} Schüler:innen haben noch keinen Sign-in-Code.`,
+        });
+      }
+
+      await getEmailQueue().addBulk(
+        recipients.map((student) => ({
+          name: EmailJobName.VotingInvite,
+          data: { studentId: student.id, projectId: input.projectId },
+        })),
+      );
+
+      return { enqueued: recipients.length };
     }),
 });

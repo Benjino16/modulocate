@@ -2,9 +2,8 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { and, eq } from "drizzle-orm";
 import { moduleCategoryCreateInput, moduleCategoryUpdateInput } from "@modulocate/shared";
+import { db, moduleCategories } from "@modulocate/db";
 import { router, publicProcedure } from "../trpc";
-import { db } from "../db";
-import { moduleCategories } from "../db/schema";
 import { projectScoped } from "./shared";
 
 export const moduleCategoriesRouter = router({

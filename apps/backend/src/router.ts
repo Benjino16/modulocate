@@ -6,6 +6,7 @@ import { moduleCategoriesRouter } from "./routers/moduleCategories";
 import { datesRouter } from "./routers/dates";
 import { rulesRouter } from "./routers/rules";
 import { studentGroupsRouter } from "./routers/studentGroups";
+import { mailRouter } from "./routers/mail";
 
 export const appRouter = router({
   health: publicProcedure.query(() => {
@@ -19,6 +20,7 @@ export const appRouter = router({
   dates: datesRouter,
   rules: rulesRouter,
   studentGroups: studentGroupsRouter,
+  mail: mailRouter,
 });
 
 export type AppRouter = typeof appRouter;
