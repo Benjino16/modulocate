@@ -1,10 +1,11 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
+import type { ProjectPhase } from "@modulocate/shared";
 import { useTRPC } from "../trpc";
 
 const STORAGE_KEY = "modulocate.selectedProjectId";
 
-type Project = { id: string; name: string };
+type Project = { id: string; name: string; phase: ProjectPhase };
 
 type ProjectContextValue = {
   projects: Project[];

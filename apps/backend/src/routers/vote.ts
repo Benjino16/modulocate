@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { and, eq, inArray } from "drizzle-orm";
+import { projectPhase } from "@modulocate/shared";
 import { db, modules, projects, students, studentPreferences, resolveStudentEligibility } from "@modulocate/db";
 import { router, protectedStudentProcedure } from "../trpc";
 
@@ -40,7 +41,7 @@ export const voteRouter = router({
     .input(z.object({ moduleIds: z.array(z.uuid()).min(1) }))
     .mutation(async ({ ctx, input }) => {
       const [project] = await db.select().from(projects).where(eq(projects.id, ctx.student.projectId));
-      if (!project || project.phase !== "open") {
+      if (!project || project.phase !== projectPhase.enum.voting) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
           message: "Die Umfrage ist aktuell nicht offen.",
@@ -70,7 +71,10 @@ export const voteRouter = router({
             preference: index + 1,
           })),
         );
-        await tx.update(students).set({ voteStatus: "voted" }).where(eq(students.id, ctx.student.studentId));
+        await tx
+          .update(students)
+          .set({ voteStatus: "voted", voteSubmittedAt: new Date() })
+          .where(eq(students.id, ctx.student.studentId));
       });
 
       return { success: true as const };

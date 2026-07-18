@@ -29,6 +29,12 @@ export const voteAuthRouter = router({
         throw new TRPCError({ code: "UNAUTHORIZED", message: "Ungültiger Link." });
       }
 
+      // First-open timestamp — only set once, so re-visiting the link on
+      // later logins doesn't overwrite when the student first opened it.
+      if (!student.voteOpenedAt) {
+        await db.update(students).set({ voteOpenedAt: new Date() }).where(eq(students.id, student.id));
+      }
+
       const token = signStudentSession({ studentId: student.id, projectId: student.projectId });
       ctx.res.setCookie(STUDENT_SESSION_COOKIE, token, COOKIE_OPTIONS);
 

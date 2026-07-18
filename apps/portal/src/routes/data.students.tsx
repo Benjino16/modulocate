@@ -27,7 +27,7 @@ type Student = {
   groupId: string | null;
   groupName: string | null;
   ruleId: string | null;
-  voteStatus: string;
+  ruleName: string | null;
 };
 
 function StudentsPage() {
@@ -73,7 +73,6 @@ function StudentsPage() {
               <TableHead>E-Mail</TableHead>
               <TableHead>E-Mail (2)</TableHead>
               <TableHead>Klasse</TableHead>
-              <TableHead>Vote-Status</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -86,8 +85,21 @@ function StudentsPage() {
                 <TableCell className="font-medium">{student.name}</TableCell>
                 <TableCell className="text-muted-foreground">{student.email}</TableCell>
                 <TableCell className="text-muted-foreground">{student.email2 || "–"}</TableCell>
-                <TableCell className="text-muted-foreground">{student.groupName || "–"}</TableCell>
-                <TableCell className="text-muted-foreground">{student.voteStatus}</TableCell>
+                <TableCell className="text-muted-foreground">
+                  {student.groupName || "–"}
+                  {student.ruleId && (
+                    <span
+                      className="ml-2 rounded-sm bg-secondary px-1.5 py-0.5 text-xs font-medium text-secondary-foreground"
+                      title={
+                        student.ruleName
+                          ? `Regel für diesen Schüler überschrieben: ${student.ruleName}`
+                          : "Regel für diesen Schüler überschrieben"
+                      }
+                    >
+                      Regel überschrieben
+                    </span>
+                  )}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>

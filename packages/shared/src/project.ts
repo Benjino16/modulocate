@@ -3,11 +3,11 @@ import { z } from "zod";
 // See planning.md "Locked Decision: `phase` Column on `projects`" — text +
 // Zod enum, not a Postgres enum type, so adding/renaming a phase is a
 // validator change, not a migration. Portal sidebar mapping: Daten = setup,
-// Umfrage = open/closed, Zuteilung = allocating, Anpassungen = reviewing,
+// Umfrage = voting/closed, Zuteilung = allocating, Anpassungen = reviewing,
 // Ergebnisse = finalized/published.
 export const projectPhase = z.enum([
   "setup",
-  "open",
+  "voting",
   "closed",
   "allocating",
   "reviewing",

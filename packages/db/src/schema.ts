@@ -7,6 +7,7 @@ import {
   jsonb,
   primaryKey,
 } from "drizzle-orm/pg-core";
+import type { ProjectPhase } from "@modulocate/shared";
 
 // --- Account / Admin ---
 
@@ -29,11 +30,12 @@ export const auditLogs = pgTable("audit_logs", {
 export const projects = pgTable("projects", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
-  // setup -> open -> closed -> allocating -> reviewing -> finalized -> published
+  // setup -> voting -> closed -> allocating -> reviewing -> finalized -> published
   // (see planning.md "Locked Decision: `phase` Column on `projects`") — text +
   // Zod enum (packages/shared), not a Postgres enum type, so a new phase name
-  // never needs a migration, only a validator change.
-  phase: text("phase").notNull().default("setup"),
+  // never needs a migration, only a validator change. $type<> pins the TS
+  // shape to that same enum without touching the runtime column type.
+  phase: text("phase").notNull().default("setup").$type<ProjectPhase>(),
 });
 
 export const settings = pgTable("settings", {
@@ -154,6 +156,14 @@ export const students = pgTable("students", {
   email2: text("email_2").unique(),
   signInCode: text("sign_in_code").unique(),
   voteStatus: text("vote_status").notNull(),
+  // Set once, on the student's first successful vote-app login — distinct
+  // from voteSubmittedAt so the portal can show "opened but not voted yet"
+  // instead of collapsing that into a single voted/not-voted flag.
+  voteOpenedAt: timestamp("vote_opened_at", { withTimezone: true }),
+  // Overwritten on every submitPreferences call (not just the first), since
+  // resubmitting while the election is open is allowed and "last voted at"
+  // should reflect the most recent submission.
+  voteSubmittedAt: timestamp("vote_submitted_at", { withTimezone: true }),
   // overrides the group's rule when set; same "set null, not owned" reasoning
   ruleId: uuid("rule_id").references(() => rules.id, { onDelete: "set null" }),
 });

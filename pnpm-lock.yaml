@@ -264,6 +264,9 @@ importers:
 
   packages/db:
     dependencies:
+      '@modulocate/shared':
+        specifier: workspace:*
+        version: link:../shared
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2

@@ -7,6 +7,7 @@ export function Navbar({ tabs }: { tabs: { to: string; label: string }[] }) {
         <Link
           key={tab.to}
           to={tab.to}
+          activeOptions={{ exact: true }}
           className="rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground"
           activeProps={{ className: "bg-secondary text-foreground" }}
         >

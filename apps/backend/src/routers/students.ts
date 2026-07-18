@@ -2,7 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { and, eq, inArray } from "drizzle-orm";
 import { studentCreateInput, studentUpdateInput } from "@modulocate/shared";
-import { db, studentGroups, studentInGroup, students } from "@modulocate/db";
+import { db, rules, studentGroups, studentInGroup, students } from "@modulocate/db";
 import { EmailJobName, getEmailQueue } from "@modulocate/queue";
 import { router, publicProcedure } from "../trpc";
 import { projectScoped, type DbExecutor } from "./shared";
@@ -22,13 +22,17 @@ async function loadStudents(executor: DbExecutor, projectId: string, ids?: strin
       email2: students.email2,
       signInCode: students.signInCode,
       voteStatus: students.voteStatus,
+      voteOpenedAt: students.voteOpenedAt,
+      voteSubmittedAt: students.voteSubmittedAt,
       ruleId: students.ruleId,
+      ruleName: rules.name,
       groupId: studentGroups.id,
       groupName: studentGroups.name,
     })
     .from(students)
     .leftJoin(studentInGroup, eq(studentInGroup.studentId, students.id))
     .leftJoin(studentGroups, eq(studentGroups.id, studentInGroup.groupId))
+    .leftJoin(rules, eq(rules.id, students.ruleId))
     .where(
       ids
         ? and(eq(students.projectId, projectId), inArray(students.id, ids))
