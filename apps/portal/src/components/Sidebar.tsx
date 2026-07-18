@@ -1,12 +1,15 @@
+import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { ChevronsUpDown, Settings, User } from "lucide-react";
+import { ChevronsUpDown, Plus, Settings, User } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@modulocate/ui/components/dropdown-menu";
 import { useProject } from "../lib/project-context";
+import { ProjectDialog } from "./ProjectDialog";
 
 const phases = [
   { to: "/data", number: 1, label: "Daten" },
@@ -19,6 +22,7 @@ const phases = [
 export function Sidebar() {
   const { projects, projectId, setProjectId } = useProject();
   const currentProject = projects.find((p) => p.id === projectId);
+  const [projectDialogOpen, setProjectDialogOpen] = useState(false);
 
   return (
     <aside className="flex h-screen w-64 shrink-0 flex-col border-r bg-background">
@@ -34,9 +38,20 @@ export function Sidebar() {
                 {project.name}
               </DropdownMenuItem>
             ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => setProjectDialogOpen(true)}>
+              <Plus className="size-4" />
+              Neues Projekt
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      <ProjectDialog
+        open={projectDialogOpen}
+        onOpenChange={setProjectDialogOpen}
+        onCreated={setProjectId}
+      />
 
       <nav className="flex flex-1 flex-col justify-center gap-1 px-3">
         {phases.map((phase) => (

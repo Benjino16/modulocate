@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { and, eq, isNull } from "drizzle-orm";
-import { projectPhase } from "@modulocate/shared";
+import { projectCreateInput, projectPhase } from "@modulocate/shared";
 import { db, projects, students } from "@modulocate/db";
 import { router, publicProcedure } from "../trpc";
 import { projectScoped } from "./shared";
@@ -11,6 +11,12 @@ import { enqueueVotingInvites } from "./students";
 // project switcher has something to select from (see projectScoped in ./shared).
 export const projectsRouter = router({
   list: publicProcedure.query(() => db.select().from(projects)),
+
+  // Phase defaults to "setup" at the DB level (see packages/db/src/schema.ts).
+  create: publicProcedure.input(projectCreateInput).mutation(async ({ input }) => {
+    const [project] = await db.insert(projects).values(input).returning();
+    return project;
+  }),
 
   // setup -> voting (see planning.md "Locked Decision: `phase` Column on
   // `projects`"). Mints a sign-in code for every student who doesn't have

@@ -16,3 +16,9 @@ export const projectPhase = z.enum([
 ]);
 
 export type ProjectPhase = z.infer<typeof projectPhase>;
+
+export const projectCreateInput = z.object({
+  name: z.string().min(1),
+});
+
+export type ProjectCreateInput = z.infer<typeof projectCreateInput>;
