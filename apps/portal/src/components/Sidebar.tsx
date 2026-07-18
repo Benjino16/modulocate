@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ChevronsUpDown, User } from "lucide-react";
+import { ChevronsUpDown, Settings, User } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -54,7 +54,17 @@ export function Sidebar() {
         ))}
       </nav>
 
-      <div className="border-t p-3">
+      <div className="flex flex-col gap-1 border-t p-3">
+        <Link
+          to="/settings"
+          className="flex items-center gap-2 rounded-md p-2 text-sm hover:bg-accent"
+          activeProps={{ className: "bg-secondary" }}
+        >
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-secondary">
+            <Settings className="size-4" />
+          </span>
+          Admin Einstellungen
+        </Link>
         <Link
           to="/account"
           className="flex items-center gap-2 rounded-md p-2 text-sm hover:bg-accent"
