@@ -29,6 +29,8 @@ const ruleFields = z.object({
   // blocked_module was dropped, the same effect is reachable by putting the
   // module in its own category and blocking that category instead.
   blockedCategoryIds: z.array(z.uuid()).default([]),
+  // dates blocked for students under this rule (rule_blocked_date)
+  blockedDateIds: z.array(z.uuid()).default([]),
 });
 
 export const ruleCreateInput = ruleFields;
@@ -37,7 +39,7 @@ export const ruleCreateInput = ruleFields;
 // diffing individual sub-rules by id — sub-rule ids aren't referenced anywhere
 // outside category_in_sub_rule (nothing stores "sub-rule #X" across time), so a
 // full replace is simpler and just as correct as a partial patch would be.
-// blockedCategoryIds follows the same full-replace convention.
+// blockedCategoryIds/blockedDateIds follow the same full-replace convention.
 export const ruleUpdateInput = z.object({
   id: z.uuid(),
   name: z.string().min(1).optional(),
@@ -45,6 +47,7 @@ export const ruleUpdateInput = z.object({
   priority: z.boolean().optional(),
   subRules: z.array(subRuleInput).optional(),
   blockedCategoryIds: z.array(z.uuid()).optional(),
+  blockedDateIds: z.array(z.uuid()).optional(),
 });
 
 export type RuleCreateInput = z.infer<typeof ruleCreateInput>;

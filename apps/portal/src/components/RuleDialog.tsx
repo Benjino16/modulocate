@@ -13,6 +13,12 @@ import { Input } from "@modulocate/ui/components/input";
 import { Label } from "@modulocate/ui/components/label";
 import { Checkbox } from "@modulocate/ui/components/checkbox";
 import { MultiSelect } from "@modulocate/ui/components/multi-select";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@modulocate/ui/components/accordion";
 import { useTRPC } from "../trpc";
 
 type RuleSummary = { id: string; name: string };
@@ -28,6 +34,7 @@ type FormState = {
   moduleCount: string;
   priority: boolean;
   blockedCategoryIds: string[];
+  blockedDateIds: string[];
   subRules: SubRuleForm[];
 };
 
@@ -36,6 +43,7 @@ const emptyForm: FormState = {
   moduleCount: "",
   priority: false,
   blockedCategoryIds: [],
+  blockedDateIds: [],
   subRules: [],
 };
 
@@ -46,7 +54,16 @@ function nextSubRuleKey() {
 }
 
 function formStateFor(
-  rule: { name: string; moduleCount: number; priority: boolean; blockedCategoryIds: string[]; subRules: { id: string; categoryIds: string[] }[] } | undefined,
+  rule:
+    | {
+        name: string;
+        moduleCount: number;
+        priority: boolean;
+        blockedCategoryIds: string[];
+        blockedDateIds: string[];
+        subRules: { id: string; categoryIds: string[] }[];
+      }
+    | undefined,
 ): FormState {
   if (!rule) return emptyForm;
   return {
@@ -54,6 +71,7 @@ function formStateFor(
     moduleCount: String(rule.moduleCount),
     priority: rule.priority,
     blockedCategoryIds: rule.blockedCategoryIds,
+    blockedDateIds: rule.blockedDateIds,
     subRules: rule.subRules.map((subRule) => ({ key: subRule.id, categoryIds: subRule.categoryIds })),
   };
 }
@@ -73,6 +91,7 @@ export function RuleDialog({
   const queryClient = useQueryClient();
   const [form, setForm] = useState<FormState>(emptyForm);
   const [error, setError] = useState<string | undefined>();
+  const [openSubRuleKeys, setOpenSubRuleKeys] = useState<string[]>([]);
 
   const { data: fullRule } = useQuery({
     ...trpc.rules.get.queryOptions({ projectId, id: rule?.id ?? "" }),
@@ -85,10 +104,17 @@ export function RuleDialog({
   });
   const categoryOptions = categories?.map((category) => ({ value: category.id, label: category.name })) ?? [];
 
+  const { data: dates } = useQuery({
+    ...trpc.dates.list.queryOptions({ projectId }),
+    enabled: open,
+  });
+  const dateOptions = dates?.map((date) => ({ value: date.id, label: date.name })) ?? [];
+
   useEffect(() => {
     if (open) {
       setForm(formStateFor(rule ? fullRule : undefined));
       setError(undefined);
+      setOpenSubRuleKeys([]);
     }
   }, [open, rule, fullRule]);
 
@@ -135,6 +161,10 @@ export function RuleDialog({
     setForm((prev) => ({ ...prev, blockedCategoryIds: categoryIds }));
   }
 
+  function setBlockedDateIds(dateIds: string[]) {
+    setForm((prev) => ({ ...prev, blockedDateIds: dateIds }));
+  }
+
   function setSubRuleCategoryIds(subRuleKey: string, categoryIds: string[]) {
     setForm((prev) => ({
       ...prev,
@@ -143,11 +173,14 @@ export function RuleDialog({
   }
 
   function addSubRule() {
-    setForm((prev) => ({ ...prev, subRules: [...prev.subRules, { key: nextSubRuleKey(), categoryIds: [] }] }));
+    const key = nextSubRuleKey();
+    setForm((prev) => ({ ...prev, subRules: [...prev.subRules, { key, categoryIds: [] }] }));
+    setOpenSubRuleKeys((prev) => [...prev, key]);
   }
 
   function removeSubRule(subRuleKey: string) {
     setForm((prev) => ({ ...prev, subRules: prev.subRules.filter((subRule) => subRule.key !== subRuleKey) }));
+    setOpenSubRuleKeys((prev) => prev.filter((key) => key !== subRuleKey));
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -160,7 +193,9 @@ export function RuleDialog({
     if (!Number.isInteger(moduleCount) || moduleCount < 1) {
       return setError("Anzahl Module muss eine positive ganze Zahl sein.");
     }
-    if (form.subRules.some((subRule) => subRule.categoryIds.length === 0)) {
+    const emptySubRuleKeys = form.subRules.filter((subRule) => subRule.categoryIds.length === 0).map((s) => s.key);
+    if (emptySubRuleKeys.length > 0) {
+      setOpenSubRuleKeys((prev) => [...new Set([...prev, ...emptySubRuleKeys])]);
       return setError("Jede Sub-Regel benötigt mindestens eine Kategorie.");
     }
 
@@ -170,6 +205,7 @@ export function RuleDialog({
       moduleCount,
       priority: form.priority,
       blockedCategoryIds: form.blockedCategoryIds,
+      blockedDateIds: form.blockedDateIds,
       subRules: form.subRules.map((subRule) => ({ categoryIds: subRule.categoryIds })),
     };
 
@@ -240,6 +276,18 @@ export function RuleDialog({
             />
           </div>
 
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="rule-blocked-dates">Blockierte Termine</Label>
+            <MultiSelect
+              id="rule-blocked-dates"
+              options={dateOptions}
+              selected={form.blockedDateIds}
+              onChange={setBlockedDateIds}
+              placeholder="Keine blockierten Termine"
+              emptyText="Keine Termine vorhanden."
+            />
+          </div>
+
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <Label>Sub-Regeln</Label>
@@ -252,29 +300,53 @@ export function RuleDialog({
               <p className="text-sm text-muted-foreground">Noch keine Sub-Regeln angelegt.</p>
             )}
 
-            {form.subRules.map((subRule, i) => (
-              <div key={subRule.key} className="flex flex-col gap-2 rounded-md border p-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Sub-Regel {i + 1}</span>
-                  <Button
-                    type="button"
-                    size="icon-xs"
-                    variant="ghost"
-                    onClick={() => removeSubRule(subRule.key)}
-                    aria-label="Sub-Regel entfernen"
-                  >
-                    <Trash2 />
-                  </Button>
-                </div>
-                <MultiSelect
-                  options={categoryOptions}
-                  selected={subRule.categoryIds}
-                  onChange={(categoryIds) => setSubRuleCategoryIds(subRule.key, categoryIds)}
-                  placeholder="Kategorien wählen"
-                  emptyText="Keine Kategorien vorhanden."
-                />
-              </div>
-            ))}
+            {!!form.subRules.length && (
+              <Accordion
+                type="multiple"
+                value={openSubRuleKeys}
+                onValueChange={setOpenSubRuleKeys}
+                className="rounded-md border px-3"
+              >
+                {form.subRules.map((subRule, i) => {
+                  const preview = subRule.categoryIds
+                    .map((id) => categoryOptions.find((option) => option.value === id)?.label)
+                    .filter(Boolean)
+                    .join(", ");
+                  return (
+                    <AccordionItem key={subRule.key} value={subRule.key}>
+                      <div className="flex items-center gap-1">
+                        <AccordionTrigger>
+                          <span className="flex min-w-0 items-baseline gap-2">
+                            <span>Sub-Regel {i + 1}</span>
+                            <span className="truncate text-xs font-normal text-muted-foreground">
+                              {preview || "Keine Kategorien gewählt"}
+                            </span>
+                          </span>
+                        </AccordionTrigger>
+                        <Button
+                          type="button"
+                          size="icon-xs"
+                          variant="ghost"
+                          onClick={() => removeSubRule(subRule.key)}
+                          aria-label="Sub-Regel entfernen"
+                        >
+                          <Trash2 />
+                        </Button>
+                      </div>
+                      <AccordionContent>
+                        <MultiSelect
+                          options={categoryOptions}
+                          selected={subRule.categoryIds}
+                          onChange={(categoryIds) => setSubRuleCategoryIds(subRule.key, categoryIds)}
+                          placeholder="Kategorien wählen"
+                          emptyText="Keine Kategorien vorhanden."
+                        />
+                      </AccordionContent>
+                    </AccordionItem>
+                  );
+                })}
+              </Accordion>
+            )}
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}

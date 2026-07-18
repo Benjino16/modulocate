@@ -2,14 +2,22 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { and, eq, inArray } from "drizzle-orm";
 import { ruleCreateInput, ruleUpdateInput } from "@modulocate/shared";
-import { db, rules, subRules, categoryInSubRule, ruleBlockedCategory, type DbExecutor } from "@modulocate/db";
+import {
+  db,
+  rules,
+  subRules,
+  categoryInSubRule,
+  ruleBlockedCategory,
+  ruleBlockedDate,
+  type DbExecutor,
+} from "@modulocate/db";
 import { router, publicProcedure } from "../trpc";
 import { projectScoped } from "./shared";
 
 // Batch-loads rules with their nested sub-rules/categoryIds and blocked
-// categories for a project (or a specific subset of rule ids). A handful of
-// extra queries total, not one per rule. Takes an explicit executor so callers
-// inside a transaction can pass `tx` and see their own uncommitted writes.
+// categories/dates for a project (or a specific subset of rule ids). A handful
+// of extra queries total, not one per rule. Takes an explicit executor so
+// callers inside a transaction can pass `tx` and see their own uncommitted writes.
 async function loadRules(executor: DbExecutor, projectId: string, ids?: string[]) {
   const ruleRows = await executor
     .select()
@@ -27,6 +35,10 @@ async function loadRules(executor: DbExecutor, projectId: string, ids?: string[]
     .select()
     .from(ruleBlockedCategory)
     .where(inArray(ruleBlockedCategory.ruleId, ruleIds));
+  const blockedDateRows = await executor
+    .select()
+    .from(ruleBlockedDate)
+    .where(inArray(ruleBlockedDate.ruleId, ruleIds));
 
   const subRuleIds = subRuleRows.map((subRule) => subRule.id);
   const categoryRows = subRuleIds.length
@@ -54,6 +66,13 @@ async function loadRules(executor: DbExecutor, projectId: string, ids?: string[]
     blockedCategoryIdsByRule.set(row.ruleId, list);
   }
 
+  const blockedDateIdsByRule = new Map<string, string[]>();
+  for (const row of blockedDateRows) {
+    const list = blockedDateIdsByRule.get(row.ruleId) ?? [];
+    list.push(row.dateId);
+    blockedDateIdsByRule.set(row.ruleId, list);
+  }
+
   return ruleRows.map((rule) => ({
     id: rule.id,
     projectId: rule.projectId,
@@ -62,6 +81,7 @@ async function loadRules(executor: DbExecutor, projectId: string, ids?: string[]
     priority: rule.priority,
     subRules: subRulesByRule.get(rule.id) ?? [],
     blockedCategoryIds: blockedCategoryIdsByRule.get(rule.id) ?? [],
+    blockedDateIds: blockedDateIdsByRule.get(rule.id) ?? [],
   }));
 }
 
@@ -119,6 +139,16 @@ export const rulesRouter = router({
           );
         }
 
+        if (input.blockedDateIds.length > 0) {
+          await tx.insert(ruleBlockedDate).values(
+            input.blockedDateIds.map((dateId) => ({
+              ruleId: rule.id,
+              dateId,
+              projectId: input.projectId,
+            })),
+          );
+        }
+
         return {
           id: rule.id,
           projectId: rule.projectId,
@@ -130,13 +160,14 @@ export const rulesRouter = router({
             categoryIds: input.subRules[i].categoryIds,
           })),
           blockedCategoryIds: input.blockedCategoryIds,
+          blockedDateIds: input.blockedDateIds,
         };
       });
     }),
 
-  // Replaces the whole sub-rule / blocked-category set when provided (see
-  // ruleUpdateInput's comment in packages/shared) rather than diffing
-  // individual rows — deleting sub_rules cascades to category_in_sub_rule.
+  // Replaces the whole sub-rule / blocked-category / blocked-date set when
+  // provided (see ruleUpdateInput's comment in packages/shared) rather than
+  // diffing individual rows — deleting sub_rules cascades to category_in_sub_rule.
   update: publicProcedure
     .input(ruleUpdateInput.and(projectScoped))
     .mutation(async ({ input }) => {
@@ -187,6 +218,20 @@ export const rulesRouter = router({
               input.blockedCategoryIds.map((categoryId) => ({
                 ruleId: input.id,
                 categoryId,
+                projectId: input.projectId,
+              })),
+            );
+          }
+        }
+
+        if (input.blockedDateIds) {
+          await tx.delete(ruleBlockedDate).where(eq(ruleBlockedDate.ruleId, input.id));
+
+          if (input.blockedDateIds.length > 0) {
+            await tx.insert(ruleBlockedDate).values(
+              input.blockedDateIds.map((dateId) => ({
+                ruleId: input.id,
+                dateId,
                 projectId: input.projectId,
               })),
             );
