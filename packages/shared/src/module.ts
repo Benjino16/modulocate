@@ -14,6 +14,9 @@ const moduleFields = z.object({
   scheduleLabel: z.string().optional(),
   dateSortId: z.uuid().optional(),
   categorySortId: z.uuid().optional(),
+  // categories the module belongs to (module_in_category) — drives rule/blocking
+  // resolution, distinct from categorySortId's UI-only grouping above
+  categoryIds: z.array(z.uuid()).default([]),
 });
 
 export const moduleCreateInput = moduleFields.refine((data) => data.max >= data.min, {

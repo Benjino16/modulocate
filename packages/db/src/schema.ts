@@ -3,6 +3,7 @@ import {
   uuid,
   text,
   integer,
+  boolean,
   timestamp,
   jsonb,
   primaryKey,
@@ -117,6 +118,10 @@ export const rules = pgTable("rules", {
   id: uuid("id").primaryKey().defaultRandom(),
   projectId: uuid("project_id").notNull().references(() => projects.id),
   name: text("name").notNull(),
+  // how many modules a student under this rule should end up with
+  moduleCount: integer("module_count").notNull(),
+  // whether students under this rule get priority during allocation
+  priority: boolean("priority").notNull().default(false),
 });
 
 export const subRules = pgTable("sub_rules", {
@@ -212,16 +217,6 @@ export const ruleBlockedCategory = pgTable(
     projectId: uuid("project_id").notNull().references(() => projects.id),
   },
   (table) => [primaryKey({ columns: [table.ruleId, table.categoryId] })],
-);
-
-export const ruleBlockedModule = pgTable(
-  "rule_blocked_module",
-  {
-    ruleId: uuid("rule_id").notNull().references(() => rules.id, { onDelete: "cascade" }),
-    moduleId: uuid("module_id").notNull().references(() => modules.id),
-    projectId: uuid("project_id").notNull().references(() => projects.id),
-  },
-  (table) => [primaryKey({ columns: [table.ruleId, table.moduleId] })],
 );
 
 export const ruleBlockedDate = pgTable(

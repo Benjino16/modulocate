@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@modulocate/ui/components/button";
 import {
   Dialog,
@@ -11,6 +11,7 @@ import {
 import { Input } from "@modulocate/ui/components/input";
 import { Label } from "@modulocate/ui/components/label";
 import { Textarea } from "@modulocate/ui/components/textarea";
+import { MultiSelect } from "@modulocate/ui/components/multi-select";
 import { useTRPC } from "../trpc";
 
 type Module = {
@@ -21,6 +22,7 @@ type Module = {
   scheduleLabel: string | null;
   min: number;
   max: number;
+  categoryIds: string[];
 };
 
 type FormState = {
@@ -30,9 +32,18 @@ type FormState = {
   min: string;
   max: string;
   description: string;
+  categoryIds: string[];
 };
 
-const emptyForm: FormState = { name: "", teacher: "", scheduleLabel: "", min: "", max: "", description: "" };
+const emptyForm: FormState = {
+  name: "",
+  teacher: "",
+  scheduleLabel: "",
+  min: "",
+  max: "",
+  description: "",
+  categoryIds: [],
+};
 
 function formStateFor(module: Module | undefined): FormState {
   if (!module) return emptyForm;
@@ -43,6 +54,7 @@ function formStateFor(module: Module | undefined): FormState {
     min: String(module.min),
     max: String(module.max),
     description: module.description ?? "",
+    categoryIds: module.categoryIds,
   };
 }
 
@@ -61,6 +73,12 @@ export function ModuleDialog({
   const queryClient = useQueryClient();
   const [form, setForm] = useState<FormState>(() => formStateFor(module));
   const [error, setError] = useState<string | undefined>();
+
+  const { data: categories } = useQuery({
+    ...trpc.moduleCategories.list.queryOptions({ projectId }),
+    enabled: open,
+  });
+  const categoryOptions = categories?.map((category) => ({ value: category.id, label: category.name })) ?? [];
 
   useEffect(() => {
     if (open) {
@@ -123,6 +141,7 @@ export function ModuleDialog({
       description: form.description.trim() || undefined,
       min,
       max,
+      categoryIds: form.categoryIds,
     };
 
     if (module) {
@@ -206,6 +225,18 @@ export function ModuleDialog({
               id="module-description"
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="module-categories">Kategorien</Label>
+            <MultiSelect
+              id="module-categories"
+              options={categoryOptions}
+              selected={form.categoryIds}
+              onChange={(categoryIds) => setForm({ ...form, categoryIds })}
+              placeholder="Keine Kategorien"
+              emptyText="Keine Kategorien vorhanden."
             />
           </div>
 

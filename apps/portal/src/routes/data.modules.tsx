@@ -19,6 +19,7 @@ type Module = {
   scheduleLabel: string | null;
   min: number;
   max: number;
+  categoryIds: string[];
 };
 
 function ModulesPage() {

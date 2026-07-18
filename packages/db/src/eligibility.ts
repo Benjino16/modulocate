@@ -9,14 +9,13 @@ import {
   moduleInDate,
   categoryIncludesCategory,
   ruleBlockedCategory,
-  ruleBlockedModule,
   ruleBlockedDate,
 } from "./schema";
 
 // Shared by both apps/backend (vote route, live per-request) and apps/worker
 // (AllocationInput assembly, bulk before a run) — see planning.md "Deferred
 // Decision: Live Resolution for the Vote App" and "Locked Decision: Blocking
-// Lives on the Rule". Only covers the flat blocking side (category/module/date);
+// Lives on the Rule". Only covers the flat blocking side (category/date);
 // sub-rule exclusivity is inherently per-assignment and stays rule-shaped,
 // resolved separately by whoever assembles AllocationRule/AllocationSubRule.
 export interface StudentEligibility {
@@ -66,9 +65,6 @@ export async function resolveStudentEligibility(
 
   const blockedCategoryRows = ruleIds.length
     ? await executor.select().from(ruleBlockedCategory).where(inArray(ruleBlockedCategory.ruleId, ruleIds))
-    : [];
-  const blockedModuleRows = ruleIds.length
-    ? await executor.select().from(ruleBlockedModule).where(inArray(ruleBlockedModule.ruleId, ruleIds))
     : [];
   const blockedDateRows = ruleIds.length
     ? await executor.select().from(ruleBlockedDate).where(inArray(ruleBlockedDate.ruleId, ruleIds))
@@ -121,12 +117,6 @@ export async function resolveStudentEligibility(
     set.add(row.categoryId);
     blockedCategoryIdsByRule.set(row.ruleId, set);
   }
-  const blockedModuleIdsByRule = new Map<string, Set<string>>();
-  for (const row of blockedModuleRows) {
-    const set = blockedModuleIdsByRule.get(row.ruleId) ?? new Set<string>();
-    set.add(row.moduleId);
-    blockedModuleIdsByRule.set(row.ruleId, set);
-  }
   const blockedDateIdsByRule = new Map<string, Set<string>>();
   for (const row of blockedDateRows) {
     const set = blockedDateIdsByRule.get(row.ruleId) ?? new Set<string>();
@@ -141,7 +131,6 @@ export async function resolveStudentEligibility(
     }
 
     const blockedCategoryIds = blockedCategoryIdsByRule.get(ruleId) ?? new Set<string>();
-    const blockedModuleIds = blockedModuleIdsByRule.get(ruleId) ?? new Set<string>();
     // A blocked date has no separate representation on the result — it resolves to
     // "every module on that date" via module_in_date, exactly like a blocked category
     // resolves via module_in_category, so it's just another exclusion check below.
@@ -149,7 +138,6 @@ export async function resolveStudentEligibility(
 
     const eligibleModuleIds = moduleRows
       .filter((m) => {
-        if (blockedModuleIds.has(m.id)) return false;
         const categoryIds = effectiveCategoryIdsByModule.get(m.id) ?? new Set<string>();
         for (const categoryId of categoryIds) {
           if (blockedCategoryIds.has(categoryId)) return false;
