@@ -20,6 +20,20 @@ function CategoriesPage() {
     ...trpc.moduleCategories.list.queryOptions({ projectId: projectId! }),
     enabled: !!projectId,
   });
+  const { data: modules } = useQuery({
+    ...trpc.modules.list.queryOptions({ projectId: projectId! }),
+    enabled: !!projectId,
+  });
+
+  const statsByCategory = new Map<string, { moduleCount: number; seatCount: number }>();
+  for (const module of modules ?? []) {
+    for (const categoryId of module.categoryIds) {
+      const stats = statsByCategory.get(categoryId) ?? { moduleCount: 0, seatCount: 0 };
+      stats.moduleCount += 1;
+      stats.seatCount += module.max;
+      statsByCategory.set(categoryId, stats);
+    }
+  }
 
   const [editingCategory, setEditingCategory] = useState<Category | undefined>();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -50,16 +64,21 @@ function CategoriesPage() {
 
       {!!categories?.length && (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
-          {categories.map((category) => (
-            <button
-              key={category.id}
-              type="button"
-              onClick={() => openEdit(category)}
-              className="rounded-lg border p-4 text-left font-semibold transition-colors hover:bg-accent"
-            >
-              {category.name}
-            </button>
-          ))}
+          {categories.map((category) => {
+            const stats = statsByCategory.get(category.id) ?? { moduleCount: 0, seatCount: 0 };
+            return (
+              <button
+                key={category.id}
+                type="button"
+                onClick={() => openEdit(category)}
+                className="rounded-lg border p-4 text-left transition-colors hover:bg-accent"
+              >
+                <p className="font-semibold">{category.name}</p>
+                <p className="text-sm text-muted-foreground">{stats.moduleCount} Module</p>
+                <p className="text-sm text-muted-foreground">{stats.seatCount} Plätze</p>
+              </button>
+            );
+          })}
         </div>
       )}
 

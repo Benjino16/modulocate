@@ -102,16 +102,6 @@ export const moduleInCategory = pgTable(
   (table) => [primaryKey({ columns: [table.moduleId, table.categoryId] })],
 );
 
-export const categoryIncludesCategory = pgTable(
-  "category_includes_category",
-  {
-    parentCategoryId: uuid("parent_category_id").notNull().references(() => moduleCategories.id),
-    subCategoryId: uuid("sub_category_id").notNull().references(() => moduleCategories.id),
-    projectId: uuid("project_id").notNull().references(() => projects.id),
-  },
-  (table) => [primaryKey({ columns: [table.parentCategoryId, table.subCategoryId] })],
-);
-
 // --- Rules (declared before groups/students, which reference rules) ---
 
 export const rules = pgTable("rules", {

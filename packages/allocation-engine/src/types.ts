@@ -12,12 +12,11 @@ export interface AllocationModule {
   id: ModuleId;
   min: number;
   max: number;
-  categoryIds: CategoryId[]; // resolved, includes category_includes_category composition
+  categoryIds: CategoryId[]; // every category the module directly belongs to
   dateIds: DateId[]; // resolved module -> dates, used for scheduling-conflict detection
 }
 
 // --- Category ---
-// category_includes_category composition is already resolved into module.categoryIds
 export interface AllocationCategory {
   id: CategoryId;
 }

@@ -7,7 +7,6 @@ import {
   modules,
   moduleInCategory,
   moduleInDate,
-  categoryIncludesCategory,
   ruleBlockedCategory,
   ruleBlockedDate,
 } from "./schema";
@@ -58,10 +57,6 @@ export async function resolveStudentEligibility(
     .from(moduleInCategory)
     .where(eq(moduleInCategory.projectId, projectId));
   const moduleDateRows = await executor.select().from(moduleInDate).where(eq(moduleInDate.projectId, projectId));
-  const compositionRows = await executor
-    .select()
-    .from(categoryIncludesCategory)
-    .where(eq(categoryIncludesCategory.projectId, projectId));
 
   const blockedCategoryRows = ruleIds.length
     ? await executor.select().from(ruleBlockedCategory).where(inArray(ruleBlockedCategory.ruleId, ruleIds))
@@ -70,39 +65,12 @@ export async function resolveStudentEligibility(
     ? await executor.select().from(ruleBlockedDate).where(inArray(ruleBlockedDate.ruleId, ruleIds))
     : [];
 
-  // parent categories a category composes into, e.g. "Fußball" -> ["Sport"] —
-  // walked transitively below so a module tagged with a sub-category also
-  // counts as blocked when the rule blocks the parent.
-  const parentsByCategory = new Map<string, string[]>();
-  for (const row of compositionRows) {
-    const list = parentsByCategory.get(row.subCategoryId) ?? [];
-    list.push(row.parentCategoryId);
-    parentsByCategory.set(row.subCategoryId, list);
-  }
-  function expandCategoryIds(directCategoryIds: string[]): Set<string> {
-    const result = new Set(directCategoryIds);
-    const queue = [...directCategoryIds];
-    while (queue.length > 0) {
-      const current = queue.shift()!;
-      for (const parent of parentsByCategory.get(current) ?? []) {
-        if (!result.has(parent)) {
-          result.add(parent);
-          queue.push(parent);
-        }
-      }
-    }
-    return result;
-  }
-
-  const directCategoryIdsByModule = new Map<string, string[]>();
+  const categoryIdsByModule = new Map<string, Set<string>>();
   for (const row of moduleCategoryRows) {
-    const list = directCategoryIdsByModule.get(row.moduleId) ?? [];
-    list.push(row.categoryId);
-    directCategoryIdsByModule.set(row.moduleId, list);
+    const set = categoryIdsByModule.get(row.moduleId) ?? new Set<string>();
+    set.add(row.categoryId);
+    categoryIdsByModule.set(row.moduleId, set);
   }
-  const effectiveCategoryIdsByModule = new Map(
-    moduleRows.map((m) => [m.id, expandCategoryIds(directCategoryIdsByModule.get(m.id) ?? [])]),
-  );
 
   const dateIdsByModule = new Map<string, Set<string>>();
   for (const row of moduleDateRows) {
@@ -138,7 +106,7 @@ export async function resolveStudentEligibility(
 
     const eligibleModuleIds = moduleRows
       .filter((m) => {
-        const categoryIds = effectiveCategoryIdsByModule.get(m.id) ?? new Set<string>();
+        const categoryIds = categoryIdsByModule.get(m.id) ?? new Set<string>();
         for (const categoryId of categoryIds) {
           if (blockedCategoryIds.has(categoryId)) return false;
         }
