@@ -133,6 +133,31 @@ export interface AllocationResult {
   metrics: AllocationMetrics;
 }
 
+// --- Rule evaluation (review-UI check, distinct from the allocator itself) ---
+// Verifies a *fixed* set of already-assigned modules against a rule — used by
+// the admin review UI (planning.md Phase 4), not by allocate(). Unlike
+// allocate()'s creditSubRule (a greedy, order-dependent heuristic needed
+// because it runs inside a multi-student, multi-step allocation loop), this
+// solves the small, fixed single-student instance exactly via backtracking —
+// see evaluateRule.ts for why that trade-off differs here.
+export interface SubRuleEvaluation {
+  subRuleId: SubRuleId;
+  satisfied: boolean;
+  // subRule.categoryIds not covered by any module credited to it in the best
+  // assignment found; empty when satisfied.
+  missingCategoryIds: CategoryId[];
+  // which of the student's assigned modules were credited toward this sub-rule
+  // in the best assignment found — a module appears under at most one sub-rule.
+  coveredByModuleIds: ModuleId[];
+}
+
+export interface RuleEvaluation {
+  moduleCountTarget: number;
+  moduleCountAssigned: number;
+  moduleCountSatisfied: boolean;
+  subRules: SubRuleEvaluation[];
+}
+
 // --- Config ---
 export interface AllocationConfig {
   // fraction of each module's max capacity reserved for priority-rule students
