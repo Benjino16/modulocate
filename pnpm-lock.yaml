@@ -227,6 +227,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@modulocate/allocation-engine':
+        specifier: workspace:*
+        version: link:../../packages/allocation-engine
       '@modulocate/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -267,6 +270,9 @@ importers:
 
   packages/db:
     dependencies:
+      '@modulocate/allocation-engine':
+        specifier: workspace:*
+        version: link:../allocation-engine
       '@modulocate/shared':
         specifier: workspace:*
         version: link:../shared
@@ -308,6 +314,9 @@ importers:
 
   packages/queue:
     dependencies:
+      '@modulocate/allocation-engine':
+        specifier: workspace:*
+        version: link:../allocation-engine
       bullmq:
         specifier: ^5.80.5
         version: 5.80.5

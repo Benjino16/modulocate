@@ -9,6 +9,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@modulocate/allocation-engine": "workspace:*",
     "bullmq": "^5.80.5",
     "ioredis": "^5.11.1",
     "zod": "^4.4.3"

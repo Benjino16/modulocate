@@ -7,6 +7,7 @@
     "dev": "tsx watch src/index.ts"
   },
   "dependencies": {
+    "@modulocate/allocation-engine": "workspace:*",
     "@modulocate/db": "workspace:*",
     "@modulocate/mailer": "workspace:*",
     "@modulocate/queue": "workspace:*",

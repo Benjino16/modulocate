@@ -9,6 +9,7 @@ import { studentGroupsRouter } from "./routers/studentGroups";
 import { mailRouter } from "./routers/mail";
 import { voteAuthRouter } from "./routers/voteAuth";
 import { voteRouter } from "./routers/vote";
+import { allocationRunsRouter } from "./routers/allocationRuns";
 
 export const appRouter = router({
   health: publicProcedure.query(() => {
@@ -25,6 +26,7 @@ export const appRouter = router({
   mail: mailRouter,
   voteAuth: voteAuthRouter,
   vote: voteRouter,
+  allocationRuns: allocationRunsRouter,
 });
 
 export type AppRouter = typeof appRouter;
