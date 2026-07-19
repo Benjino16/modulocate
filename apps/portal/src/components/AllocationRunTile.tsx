@@ -17,7 +17,15 @@ export type AllocationRunSummary = {
   };
 };
 
-export function AllocationRunTile({ run, projectId }: { run: AllocationRunSummary; projectId: string }) {
+export function AllocationRunTile({
+  run,
+  projectId,
+  onClick,
+}: {
+  run: AllocationRunSummary;
+  projectId: string;
+  onClick: () => void;
+}) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
 
@@ -41,13 +49,26 @@ export function AllocationRunTile({ run, projectId }: { run: AllocationRunSummar
   })}`;
 
   return (
-    <div className="relative flex flex-col gap-3 rounded-lg border p-4">
+    // Not a <button> — it contains the nested delete <button>, and buttons
+    // can't nest. role="button" + keyboard handling keeps it accessible.
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      className="relative flex cursor-pointer flex-col gap-3 rounded-lg border p-4 text-left transition-colors hover:bg-accent"
+    >
       <button
         type="button"
         onClick={handleDelete}
         disabled={removeRun.isPending}
         aria-label="Durchlauf löschen"
-        className="absolute top-2 right-2 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-destructive disabled:pointer-events-none disabled:opacity-50"
+        className="absolute top-2 right-2 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-background hover:text-destructive disabled:pointer-events-none disabled:opacity-50"
       >
         <Trash2 className="size-4" />
       </button>

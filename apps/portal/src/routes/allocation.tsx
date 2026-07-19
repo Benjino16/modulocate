@@ -6,6 +6,7 @@ import { Input } from "@modulocate/ui/components/input";
 import { Label } from "@modulocate/ui/components/label";
 import { PhaseLayout } from "../components/PhaseLayout";
 import { AllocationRunTile, type AllocationRunSummary } from "../components/AllocationRunTile";
+import { AllocationRunDetailDialog } from "../components/AllocationRunDetailDialog";
 import { useTRPC } from "../trpc";
 import { useProject } from "../lib/project-context";
 
@@ -23,6 +24,14 @@ function AllocationPage() {
   const [prioPercent, setPrioPercent] = useState("20");
   const [seed, setSeed] = useState("");
   const [error, setError] = useState<string | undefined>();
+
+  const [selectedRunId, setSelectedRunId] = useState<string | undefined>();
+  const [detailOpen, setDetailOpen] = useState(false);
+
+  function openDetail(runId: string) {
+    setSelectedRunId(runId);
+    setDetailOpen(true);
+  }
 
   const { data: runs, isLoading } = useQuery({
     ...trpc.allocationRuns.list.queryOptions({ projectId: projectId! }),
@@ -113,11 +122,25 @@ function AllocationPage() {
         {!!runs?.length && (
           <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-4">
             {runs.map((run) => (
-              <AllocationRunTile key={run.id} run={run} projectId={projectId!} />
+              <AllocationRunTile
+                key={run.id}
+                run={run}
+                projectId={projectId!}
+                onClick={() => openDetail(run.id)}
+              />
             ))}
           </div>
         )}
       </div>
+
+      {projectId && (
+        <AllocationRunDetailDialog
+          projectId={projectId}
+          runId={selectedRunId}
+          open={detailOpen}
+          onOpenChange={setDetailOpen}
+        />
+      )}
     </PhaseLayout>
   );
 }
