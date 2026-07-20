@@ -6,4 +6,5 @@ build/
 .env.*.local
 .turbo/
 *.log
+*.tsbuildinfo
 .DS_Store
