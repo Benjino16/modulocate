@@ -95,6 +95,10 @@ describe("allocate", () => {
     expect(result.assignments).toContainEqual({ studentId: id("s2"), moduleId: id("m2") });
     expect(result.issues).toEqual([]);
     expect(result.metrics.score).toBe(100); // both got rank 1
+    // every input module gets a zeroed entry even with no contention, so callers
+    // can index by id without a presence check
+    expect(result.metrics.moduleDemand[id<ModuleId>("m1")]).toEqual({ rejections: 0, rejectionsViaRuleRequirement: 0 });
+    expect(result.metrics.moduleDemand[id<ModuleId>("m2")]).toEqual({ rejections: 0, rejectionsViaRuleRequirement: 0 });
   });
 
   it("is deterministic for a fixed seed and can differ across seeds under contention", () => {
@@ -263,6 +267,99 @@ describe("allocate", () => {
     expect(assignedModuleIds).toEqual(["filler", "ranked"]);
     expect(result.metrics.preferenceDistribution[0]).toBe(1); // filler counted as unranked
     expect(result.metrics.preferenceDistribution[1]).toBe(1);
+  });
+
+  it("records a moduleDemand rejection when a student's next reachable candidate is full", () => {
+    const r = rule("r1", { moduleCount: 1 });
+    const input = baseInput({
+      rules: [r],
+      modules: [module("m1", { max: 1 }), module("m2", { max: 5 })],
+      students: [
+        student("s1", "r1", {
+          preferences: [
+            { moduleId: id("m1"), rank: 1 },
+            { moduleId: id("m2"), rank: 2 },
+          ],
+        }),
+        student("s2", "r1", {
+          preferences: [
+            { moduleId: id("m1"), rank: 1 },
+            { moduleId: id("m2"), rank: 2 },
+          ],
+        }),
+      ],
+    });
+
+    const result = allocate(input, defaultConfig);
+
+    // whichever of s1/s2 loses the tie-break for m1's single seat still ends
+    // up with m2 — but the loss itself must show up as a rejection against m1
+    expect(result.metrics.moduleDemand[id<ModuleId>("m1")]).toEqual({ rejections: 1, rejectionsViaRuleRequirement: 0 });
+    expect(result.metrics.moduleDemand[id<ModuleId>("m2")]).toEqual({ rejections: 0, rejectionsViaRuleRequirement: 0 });
+  });
+
+  it("propagates rejections through knock-on displacement (module A full pushes demand onto module B)", () => {
+    const r = rule("r1", { moduleCount: 1 });
+    const input = baseInput({
+      rules: [r],
+      modules: [module("bouldern", { max: 1 }), module("volleyball", { max: 1 })],
+      students: ["s1", "s2", "s3"].map((sid) =>
+        student(sid, "r1", {
+          preferences: [
+            { moduleId: id("bouldern"), rank: 1 },
+            { moduleId: id("volleyball"), rank: 2 },
+          ],
+        }),
+      ),
+    });
+
+    const result = allocate(input, defaultConfig);
+
+    // 1 of 3 gets bouldern outright, 1 of 3 gets displaced into volleyball,
+    // and the 3rd is rejected from both in turn — a naive "count rank-1
+    // votes" statistic would show zero demand for volleyball despite it
+    // also running out.
+    expect(result.metrics.moduleDemand[id<ModuleId>("bouldern")].rejections).toBe(2);
+    expect(result.metrics.moduleDemand[id<ModuleId>("volleyball")].rejections).toBe(1);
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({ type: "unassigned", detail: "0 von 1 Modulen zugewiesen" }),
+    );
+  });
+
+  it("flags a rejection as rule-driven when the full module was next up only to satisfy an open sub-rule", () => {
+    const sportCategory = id<CategoryId>("sport");
+    // priority rule, no sub-rules of its own — s0's only job is to take the
+    // sport module's single seat in the prio round, deterministically (no
+    // tie-break involved, since s0 is the only priority-rule student), before
+    // the actual test subject ever gets a turn.
+    const priorityRule = rule("r0", { moduleCount: 1, priority: true });
+    const r = rule("r1", {
+      moduleCount: 2,
+      subRules: [{ id: id<SubRuleId>("sr1"), categoryIds: [sportCategory] }],
+    });
+    const input = baseInput({
+      rules: [priorityRule, r],
+      categories: [{ id: sportCategory }],
+      modules: [module("m_sport", { max: 1, categoryIds: [sportCategory] }), module("m_a", { max: 5 })],
+      students: [
+        student("s0", "r0", { preferences: [{ moduleId: id("m_sport"), rank: 1 }] }),
+        // ranks the non-sport module first (genuinely, plenty of capacity —
+        // that pick is never in question) but still needs "1x sport"; by the
+        // time that's the only thing left to satisfy, m_sport is already gone.
+        student("s_needy", "r1", {
+          preferences: [
+            { moduleId: id("m_a"), rank: 1 },
+            { moduleId: id("m_sport"), rank: 2 },
+          ],
+        }),
+      ],
+    });
+
+    const result = allocate(input, defaultConfig);
+
+    expect(result.assignments).toContainEqual({ studentId: id("s0"), moduleId: id("m_sport") });
+    expect(result.assignments).toContainEqual({ studentId: id("s_needy"), moduleId: id("m_a") });
+    expect(result.metrics.moduleDemand[id<ModuleId>("m_sport")]).toEqual({ rejections: 1, rejectionsViaRuleRequirement: 1 });
   });
 
   it("throws if a student references a rule not present in the input", () => {

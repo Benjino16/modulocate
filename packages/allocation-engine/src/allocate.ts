@@ -4,6 +4,7 @@ import type {
   AllocationInput,
   AllocationIssue,
   AllocationModule,
+  AllocationModuleDemand,
   AllocationResult,
   AllocationRule,
   AllocationStudent,
@@ -50,6 +51,11 @@ export function allocate(input: AllocationInput, config: AllocationConfig): Allo
   const moduleRuntimes = new Map<ModuleId, ModuleRuntime>(
     input.modules.map((m) => [m.id, { module: m, remainingCapacityThisRound: 0, assignedTotal: 0 }]),
   );
+  // Seeded with every module up front (see AllocationMetrics.moduleDemand's
+  // comment) so lookups below never need a presence check.
+  const moduleDemand = new Map<ModuleId, AllocationModuleDemand>(
+    input.modules.map((m) => [m.id, { rejections: 0, rejectionsViaRuleRequirement: 0 }]),
+  );
 
   const studentStates = new Map<StudentId, StudentRuntime>();
   for (const student of input.students) {
@@ -86,6 +92,17 @@ export function allocate(input: AllocationInput, config: AllocationConfig): Allo
       const covered = state.subRuleCoverage.get(subRule.id);
       return subRule.categoryIds.some((categoryId) => categorySet.has(categoryId) && !covered?.has(categoryId));
     });
+  }
+
+  // Credits a demand-rejection to `moduleId`: `state` wanted it (by rank or
+  // eligibility) at this decision point but it had no capacity left this
+  // round. Called from both buildWindow (round 2, where full candidates are
+  // filtered out before the caller ever sees them) and runRound's picking
+  // loop (round 1, where they're skipped over inline) — see each call site.
+  function recordRejection(state: StudentRuntime, moduleId: ModuleId): void {
+    const demand = moduleDemand.get(moduleId)!;
+    demand.rejections += 1;
+    if (moduleHelpsOpenSubRule(state, moduleById.get(moduleId)!)) demand.rejectionsViaRuleRequirement += 1;
   }
 
   // Greedy best-fit: credits the module to whichever open sub-rule it covers
@@ -136,6 +153,16 @@ export function allocate(input: AllocationInput, config: AllocationConfig): Allo
     });
 
     if (!isPrioRound) {
+      // Capacity is filtered here (not left to the picking loop, unlike the
+      // prio round below) so the ruleSatisfying subset further down only
+      // ever considers currently-available modules. Record a rejection for
+      // every full candidate in rank order up to the first available one —
+      // anything after that point was never "in the running" this turn, so
+      // counting it would attribute demand this student never actually felt.
+      for (const id of list) {
+        if ((moduleRuntimes.get(id)?.remainingCapacityThisRound ?? 0) > 0) break;
+        recordRejection(state, id);
+      }
       list = list.filter((id) => (moduleRuntimes.get(id)?.remainingCapacityThisRound ?? 0) > 0);
     } else {
       const stillNeeded = state.rule.moduleCount - state.assignedModuleIds.length;
@@ -179,7 +206,18 @@ export function allocate(input: AllocationInput, config: AllocationConfig): Allo
       if (!next) break;
 
       const window = buildWindow(next, isPrioRound);
-      const chosenId = window.find((id) => (moduleRuntimes.get(id)?.remainingCapacityThisRound ?? 0) > 0);
+      // Same intent as buildWindow's round-2 capacity filter above, just
+      // inline here instead: this round doesn't pre-filter capacity into
+      // buildWindow (see its `isPrioRound` branch), so the skipped-over
+      // candidates are only ever visible at this point.
+      let chosenId: ModuleId | undefined;
+      for (const id of window) {
+        if ((moduleRuntimes.get(id)?.remainingCapacityThisRound ?? 0) > 0) {
+          chosenId = id;
+          break;
+        }
+        recordRejection(next, id);
+      }
       if (chosenId === undefined) {
         // No capacity anywhere in this student's window this round — every other
         // student's assignment this round only consumes capacity, never frees it
@@ -253,6 +291,11 @@ export function allocate(input: AllocationInput, config: AllocationConfig): Allo
     }
   }
 
+  const moduleDemandRecord: Record<ModuleId, AllocationModuleDemand> = {};
+  for (const [moduleId, demand] of moduleDemand) {
+    moduleDemandRecord[moduleId] = demand;
+  }
+
   return {
     assignments,
     issues,
@@ -261,6 +304,7 @@ export function allocate(input: AllocationInput, config: AllocationConfig): Allo
       unassignedCount: issues.filter((i) => i.type === "unassigned").length,
       ruleViolationCount: issues.filter((i) => i.type === "rule_violation").length,
       preferenceDistribution,
+      moduleDemand: moduleDemandRecord,
     },
   };
 }

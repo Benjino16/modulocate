@@ -112,6 +112,28 @@ export type AllocationIssue =
   | { type: "rule_violation"; studentId: StudentId; detail: string }
   | { type: "below_min_capacity"; moduleId: ModuleId; detail: string };
 
+// A capacity-rejection: how many times, across the whole run, some student's
+// next reachable candidate for this module had zero capacity left in that
+// round. Distinct from preferenceDistribution — this measures where students
+// got turned away, not what they ended up with, so a module can show heavy
+// demand even if every one of its seats ultimately went to someone. This is
+// also what makes knock-on effects visible for free: once module A is full,
+// displaced students continue down their own ranking into module B within
+// the same run, so B's rejections rise too if it's also tight — no separate
+// per-student simulation needed to see that.
+// rejectionsViaRuleRequirement counts the subset of `rejections` that
+// happened while the student was routed by an open sub-rule (buildWindow's
+// ruleSatisfying branch) rather than free preference order — a module a
+// student only reached because they still needed, say, "1x Sport" isn't
+// evidence of popularity the way a freely-chosen pick is. Callers building a
+// preference-competitiveness signal (e.g. "is your rank realistic") should
+// likely use only `rejections - rejectionsViaRuleRequirement`; callers just
+// asking "does this module need more seats" can use `rejections` as-is.
+export interface AllocationModuleDemand {
+  rejections: number;
+  rejectionsViaRuleRequirement: number;
+}
+
 export interface AllocationMetrics {
   // mean preference-satisfaction weight across all assignments (ranked and
   // unranked/filler alike) — see allocate.ts's PREFERENCE_RANK_DECAY. Purely
@@ -124,6 +146,9 @@ export interface AllocationMetrics {
   // rank -> count of assignments at that rank; 0 is used for unranked/filler
   // assignments (a module the student was eligible for but never ranked).
   preferenceDistribution: Record<number, number>;
+  // one entry per input module, including modules with zero rejections —
+  // callers can index by AllocationModule.id without a presence check.
+  moduleDemand: Record<ModuleId, AllocationModuleDemand>;
 }
 
 export interface AllocationResult {
