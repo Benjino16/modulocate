@@ -5,14 +5,17 @@ import { db, students } from "@modulocate/db";
 import { router, publicProcedure } from "../trpc";
 import { STUDENT_SESSION_COOKIE, signStudentSession } from "../studentAuth";
 
-// SameSite=None is required because vote-web and backend are different
-// origins (see planning.md "Locked Decision: Two Separate Auth Mechanisms");
-// browsers require Secure whenever SameSite=None is set, which works over
-// http://localhost too since browsers treat localhost as a secure context.
+// vote-web and backend are different origins but the same site (same
+// hostname, different port only — port isn't part of "site" for SameSite
+// purposes), so Lax already lets the cookie through on same-host requests.
+// Not Secure/None: dev only runs over plain http, including from a phone on
+// the LAN, where Secure cookies get silently dropped (no HTTPS there).
+// TODO: once frontend/backend move to actually different hosts (production),
+// this needs secure: true + sameSite: "none" behind HTTPS.
 const COOKIE_OPTIONS = {
   httpOnly: true,
-  secure: true,
-  sameSite: "none" as const,
+  secure: false,
+  sameSite: "lax" as const,
   path: "/",
   maxAge: 60 * 60 * 24 * 7, // 7 days, matches the JWT's own expiry in studentAuth.ts
 };
