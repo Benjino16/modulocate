@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { Button } from "@modulocate/ui/components/button";
 import { Input } from "@modulocate/ui/components/input";
@@ -20,6 +20,7 @@ function LoginPage() {
   const { code } = Route.useSearch();
   const navigate = useNavigate();
   const trpc = useTRPC();
+  const queryClient = useQueryClient();
   const [manualCode, setManualCode] = useState("");
   // Starts true whenever a code arrives via the URL, so the spinner shows
   // instead of the form until that one attempt resolves either way.
@@ -27,7 +28,14 @@ function LoginPage() {
 
   const login = useMutation(
     trpc.voteAuth.login.mutationOptions({
-      onSuccess: () => navigate({ to: "/vote" }),
+      onSuccess: () => {
+        // The query cache is shared across the whole SPA session, so a
+        // previous student's cached identity (and anything keyed off it,
+        // e.g. the vote page's localStorage cache lookup) must not leak
+        // into a different student logging in on the same device/tab.
+        queryClient.removeQueries({ queryKey: trpc.voteAuth.me.queryKey() });
+        navigate({ to: "/vote" });
+      },
       onError: () => setAutoLoginInFlight(false),
     }),
   );
