@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { Plus, Settings } from "lucide-react";
 import { Button } from "@modulocate/ui/components/button";
 import { useTRPC } from "../trpc";
 import { useProject } from "../lib/project-context";
 import { ModuleDialog } from "../components/ModuleDialog";
+import { ModuleContentDialog } from "../components/ModuleContentDialog";
 
 export const Route = createFileRoute("/data/modules")({
   component: ModulesPage,
@@ -14,6 +15,7 @@ export const Route = createFileRoute("/data/modules")({
 type Module = {
   id: string;
   name: string;
+  subtitle: string | null;
   description: string | null;
   teacher: string | null;
   scheduleLabel: string | null;
@@ -30,17 +32,24 @@ function ModulesPage() {
     enabled: !!projectId,
   });
 
-  const [editingModule, setEditingModule] = useState<Module | undefined>();
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [settingsModule, setSettingsModule] = useState<Module | undefined>();
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [contentModule, setContentModule] = useState<Module | undefined>();
+  const [contentOpen, setContentOpen] = useState(false);
 
   function openCreate() {
-    setEditingModule(undefined);
-    setDialogOpen(true);
+    setSettingsModule(undefined);
+    setSettingsOpen(true);
   }
 
-  function openEdit(module: Module) {
-    setEditingModule(module);
-    setDialogOpen(true);
+  function openSettings(module: Module) {
+    setSettingsModule(module);
+    setSettingsOpen(true);
+  }
+
+  function openContent(module: Module) {
+    setContentModule(module);
+    setContentOpen(true);
   }
 
   return (
@@ -60,19 +69,41 @@ function ModulesPage() {
       {!!modules?.length && (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
           {modules.map((module) => (
-            <button
+            // Not a <button> — it contains the nested settings <button>, and
+            // buttons can't nest. role="button" + keyboard handling keeps it
+            // accessible; group-hover reveals the gear icon.
+            <div
               key={module.id}
-              type="button"
-              onClick={() => openEdit(module)}
-              className="flex flex-col gap-1 rounded-lg border p-4 text-left transition-colors hover:bg-accent"
+              role="button"
+              tabIndex={0}
+              onClick={() => openContent(module)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  openContent(module);
+                }
+              }}
+              className="group relative flex cursor-pointer flex-col gap-1 rounded-lg border p-4 text-left transition-colors hover:bg-accent"
             >
-              <h3 className="font-semibold">{module.name}</h3>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openSettings(module);
+                }}
+                aria-label="Moduleinstellungen"
+                className="absolute top-2 right-2 rounded-md p-1.5 text-muted-foreground opacity-0 transition-opacity hover:bg-background hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100"
+              >
+                <Settings className="size-4" />
+              </button>
+
+              <h3 className="pr-8 font-semibold">{module.name}</h3>
               <p className="text-sm text-muted-foreground">
                 {module.scheduleLabel || "Kein Termin festgelegt"}
               </p>
               <p className="text-sm text-muted-foreground">Max. {module.max} Teilnehmer</p>
               <p className="text-sm text-muted-foreground">{module.teacher || "Kein Lehrer zugeteilt"}</p>
-            </button>
+            </div>
           ))}
         </div>
       )}
@@ -80,9 +111,18 @@ function ModulesPage() {
       {projectId && (
         <ModuleDialog
           projectId={projectId}
-          module={editingModule}
-          open={dialogOpen}
-          onOpenChange={setDialogOpen}
+          module={settingsModule}
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+        />
+      )}
+
+      {projectId && contentModule && (
+        <ModuleContentDialog
+          projectId={projectId}
+          module={contentModule}
+          open={contentOpen}
+          onOpenChange={setContentOpen}
         />
       )}
     </div>

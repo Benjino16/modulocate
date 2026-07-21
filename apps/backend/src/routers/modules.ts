@@ -6,6 +6,7 @@ import { moduleCreateInput, moduleUpdateInput } from "@modulocate/shared";
 import { db, modules, moduleInCategory, type DbExecutor } from "@modulocate/db";
 import { router, publicProcedure } from "../trpc";
 import { projectScoped } from "./shared";
+import { sanitizeModuleDescription } from "../lib/sanitize";
 
 // Batch-loads modules with their categoryIds (module_in_category) for a
 // project (or a specific subset of module ids). Takes an explicit executor so
@@ -56,6 +57,9 @@ export const modulesRouter = router({
     .mutation(async ({ input }) => {
       return db.transaction(async (tx) => {
         const { categoryIds, ...fields } = input;
+        if (fields.description !== undefined) {
+          fields.description = sanitizeModuleDescription(fields.description);
+        }
         const [module] = await tx
           .insert(modules)
           .values({ ...fields, permanentName: randomUUID() })
@@ -82,6 +86,9 @@ export const modulesRouter = router({
     .mutation(async ({ input }) => {
       return db.transaction(async (tx) => {
         const { id, projectId, categoryIds, ...patch } = input;
+        if (patch.description !== undefined) {
+          patch.description = sanitizeModuleDescription(patch.description);
+        }
 
         const [existing] = await tx
           .select()

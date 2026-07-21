@@ -10,14 +10,12 @@ import {
 } from "@modulocate/ui/components/dialog";
 import { Input } from "@modulocate/ui/components/input";
 import { Label } from "@modulocate/ui/components/label";
-import { Textarea } from "@modulocate/ui/components/textarea";
 import { MultiSelect } from "@modulocate/ui/components/multi-select";
 import { useTRPC } from "../trpc";
 
 type Module = {
   id: string;
   name: string;
-  description: string | null;
   teacher: string | null;
   scheduleLabel: string | null;
   min: number;
@@ -31,7 +29,6 @@ type FormState = {
   scheduleLabel: string;
   min: string;
   max: string;
-  description: string;
   categoryIds: string[];
 };
 
@@ -41,7 +38,6 @@ const emptyForm: FormState = {
   scheduleLabel: "",
   min: "",
   max: "",
-  description: "",
   categoryIds: [],
 };
 
@@ -53,7 +49,6 @@ function formStateFor(module: Module | undefined): FormState {
     scheduleLabel: module.scheduleLabel ?? "",
     min: String(module.min),
     max: String(module.max),
-    description: module.description ?? "",
     categoryIds: module.categoryIds,
   };
 }
@@ -138,7 +133,6 @@ export function ModuleDialog({
       name: form.name.trim(),
       teacher: form.teacher.trim() || undefined,
       scheduleLabel: form.scheduleLabel.trim() || undefined,
-      description: form.description.trim() || undefined,
       min,
       max,
       categoryIds: form.categoryIds,
@@ -161,19 +155,21 @@ export function ModuleDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{module ? "Modul bearbeiten" : "Neues Modul"}</DialogTitle>
+          <DialogTitle>{module ? "Moduleinstellungen" : "Neues Modul"}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="module-name">Name</Label>
-            <Input
-              id="module-name"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              required
-            />
-          </div>
+          {!module && (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="module-name">Name</Label>
+              <Input
+                id="module-name"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                required
+              />
+            </div>
+          )}
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="module-teacher">Lehrer/-in</Label>
@@ -217,15 +213,6 @@ export function ModuleDialog({
                 required
               />
             </div>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="module-description">Beschreibung</Label>
-            <Textarea
-              id="module-description"
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-            />
           </div>
 
           <div className="flex flex-col gap-1.5">

@@ -6,6 +6,8 @@ import { z } from "zod";
 // same" module across projects — not something a user types in).
 const moduleFields = z.object({
   name: z.string().min(1),
+  subtitle: z.string().optional(),
+  // sanitized server-side before persisting — see apps/backend/src/lib/sanitize.ts
   description: z.string().optional(),
   teacher: z.string().optional(),
   pictureUrl: z.url().optional(),
@@ -27,6 +29,10 @@ export const moduleCreateInput = moduleFields.refine((data) => data.max >= data.
 export const moduleUpdateInput = z.object({
   id: z.uuid(),
   ...moduleFields.partial().shape,
+  // Overrides the `.default([])` from moduleFields: on a partial update, an
+  // omitted categoryIds must mean "leave categories alone", not "replace with
+  // []" — the router treats [] (present) and undefined (absent) differently.
+  categoryIds: z.array(z.uuid()).optional(),
 });
 // Note: partial updates skip the max>=min cross-field check for now — enforcing
 // it correctly requires comparing against the persisted row, not just the patch.
