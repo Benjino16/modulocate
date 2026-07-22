@@ -15,7 +15,6 @@ export const Route = createFileRoute("/data/modules")({
 type Module = {
   id: string;
   name: string;
-  subtitle: string | null;
   description: string | null;
   teacher: string | null;
   scheduleLabel: string | null;

@@ -16,26 +16,23 @@ import { useTRPC } from "../trpc";
 type Module = {
   id: string;
   name: string;
-  subtitle: string | null;
   description: string | null;
 };
 
 type FormState = {
   name: string;
-  subtitle: string;
   description: string;
 };
 
 function formStateFor(module: Module): FormState {
   return {
     name: module.name,
-    subtitle: module.subtitle ?? "",
     description: module.description ?? "",
   };
 }
 
 // The "standard" menu teachers reach by clicking a module tile — content only
-// (name/subtitle/description). Everything else (teacher, schedule, capacity,
+// (name/description). Everything else (teacher, schedule, capacity,
 // categories) lives in ModuleDialog, reached via the tile's gear icon.
 export function ModuleContentDialog({
   projectId,
@@ -80,7 +77,6 @@ export function ModuleContentDialog({
       id: module.id,
       projectId,
       name: form.name.trim(),
-      subtitle: form.subtitle.trim() || undefined,
       description: form.description.trim() || undefined,
     });
   }
@@ -100,15 +96,6 @@ export function ModuleContentDialog({
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               required
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="module-content-subtitle">Untertitel</Label>
-            <Input
-              id="module-content-subtitle"
-              value={form.subtitle}
-              onChange={(e) => setForm({ ...form, subtitle: e.target.value })}
             />
           </div>
 

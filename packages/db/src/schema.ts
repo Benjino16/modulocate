@@ -71,7 +71,6 @@ export const modules = pgTable("modules", {
   // lets the system recognize "the same" module across projects/years
   permanentName: text("permanent_name").notNull(),
   name: text("name").notNull(),
-  subtitle: text("subtitle"),
   // rich-text HTML, edited via tiptap in the portal and sanitized server-side
   // before it ever reaches Postgres — see apps/backend/src/lib/sanitize.ts
   description: text("description"),

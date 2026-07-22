@@ -6,7 +6,6 @@ import { z } from "zod";
 // same" module across projects — not something a user types in).
 const moduleFields = z.object({
   name: z.string().min(1),
-  subtitle: z.string().optional(),
   // sanitized server-side before persisting — see apps/backend/src/lib/sanitize.ts
   description: z.string().optional(),
   teacher: z.string().optional(),
