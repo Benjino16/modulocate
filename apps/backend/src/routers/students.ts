@@ -2,7 +2,15 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { and, eq, inArray } from "drizzle-orm";
 import { studentCreateInput, studentUpdateInput } from "@modulocate/shared";
-import { db, rules, studentGroups, studentInGroup, students } from "@modulocate/db";
+import {
+  db,
+  rules,
+  studentGroups,
+  studentInGroup,
+  students,
+  resolveRuleCompliance,
+  resolveStudentModuleOptions,
+} from "@modulocate/db";
 import { EmailJobName, getEmailQueue } from "@modulocate/queue";
 import { router, publicProcedure } from "../trpc";
 import { projectScoped, type DbExecutor } from "./shared";
@@ -42,6 +50,16 @@ async function loadStudents(executor: DbExecutor, projectId: string, ids?: strin
 
 export const studentsRouter = router({
   list: publicProcedure.input(projectScoped).query(({ input }) => loadStudents(db, input.projectId)),
+
+  ruleCompliance: publicProcedure
+    .input(projectScoped)
+    .query(({ input }) => resolveRuleCompliance(db, { projectId: input.projectId })),
+
+  // Eligible modules for the manual-assignment dialog, each annotated with
+  // this student's own preference rank and whether they're already assigned.
+  moduleOptions: publicProcedure
+    .input(projectScoped.extend({ studentId: z.uuid() }))
+    .query(({ input }) => resolveStudentModuleOptions(db, { projectId: input.projectId, studentId: input.studentId })),
 
   get: publicProcedure
     .input(projectScoped.extend({ id: z.uuid() }))

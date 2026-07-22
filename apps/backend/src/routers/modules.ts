@@ -3,7 +3,18 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { and, eq, inArray } from "drizzle-orm";
 import { moduleCreateInput, moduleUpdateInput } from "@modulocate/shared";
-import { db, modules, moduleInCategory, type DbExecutor } from "@modulocate/db";
+import {
+  db,
+  modules,
+  moduleInCategory,
+  studentInModule,
+  students,
+  rules,
+  studentGroups,
+  studentInGroup,
+  studentPreferences,
+  type DbExecutor,
+} from "@modulocate/db";
 import { router, publicProcedure } from "../trpc";
 import { projectScoped } from "./shared";
 import { sanitizeModuleDescription } from "../lib/sanitize";
@@ -35,10 +46,55 @@ async function loadModules(executor: DbExecutor, projectId: string, ids?: string
     categoryIdsByModule.set(row.moduleId, list);
   }
 
+  const studentRows = await executor
+    .select({ moduleId: studentInModule.moduleId, studentId: studentInModule.studentId })
+    .from(studentInModule)
+    .where(inArray(studentInModule.moduleId, moduleIds));
+
+  const studentCountByModule = new Map<string, number>();
+  const assignedStudentIdsByModule = new Map<string, Set<string>>();
+  for (const row of studentRows) {
+    studentCountByModule.set(row.moduleId, (studentCountByModule.get(row.moduleId) ?? 0) + 1);
+    const set = assignedStudentIdsByModule.get(row.moduleId) ?? new Set<string>();
+    set.add(row.studentId);
+    assignedStudentIdsByModule.set(row.moduleId, set);
+  }
+
+  // Median (not mean) preference rank among students actually assigned to the
+  // module — robust against a handful of low-ranked filler/manual assignments
+  // skewing the picture, unlike a plain average. Only counts students with a
+  // recorded preference for this module; manual assignments without one are
+  // left out of the calculation entirely rather than skewing it as "unranked".
+  const preferenceRows = await executor
+    .select({
+      moduleId: studentPreferences.moduleId,
+      studentId: studentPreferences.studentId,
+      preference: studentPreferences.preference,
+    })
+    .from(studentPreferences)
+    .where(inArray(studentPreferences.moduleId, moduleIds));
+
+  const assignedPreferencesByModule = new Map<string, number[]>();
+  for (const row of preferenceRows) {
+    if (!assignedStudentIdsByModule.get(row.moduleId)?.has(row.studentId)) continue;
+    const list = assignedPreferencesByModule.get(row.moduleId) ?? [];
+    list.push(row.preference);
+    assignedPreferencesByModule.set(row.moduleId, list);
+  }
+
   return moduleRows.map((module) => ({
     ...module,
     categoryIds: categoryIdsByModule.get(module.id) ?? [],
+    studentCount: studentCountByModule.get(module.id) ?? 0,
+    medianPreference: median(assignedPreferencesByModule.get(module.id) ?? []),
   }));
+}
+
+function median(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
 export const modulesRouter = router({
@@ -112,6 +168,73 @@ export const modulesRouter = router({
         const [module] = await loadModules(tx, projectId, [id]);
         return module;
       });
+    }),
+
+  // Students assigned to the module, each with their vote preference for
+  // this module (null if they got in without ever ranking it, e.g. a manual
+  // assignment) and their class/rule-override, for the roster dialog.
+  // Sorted in JS, not SQL — preference is nullable and the roster is always
+  // small, so a NULLS-LAST order-by isn't worth the query complexity.
+  roster: publicProcedure
+    .input(projectScoped.extend({ moduleId: z.uuid() }))
+    .query(async ({ input }) => {
+      const rows = await db
+        .select({
+          studentId: students.id,
+          name: students.name,
+          ruleId: students.ruleId,
+          ruleName: rules.name,
+          groupName: studentGroups.name,
+          preference: studentPreferences.preference,
+        })
+        .from(studentInModule)
+        .innerJoin(students, eq(students.id, studentInModule.studentId))
+        .leftJoin(rules, eq(rules.id, students.ruleId))
+        .leftJoin(studentInGroup, eq(studentInGroup.studentId, students.id))
+        .leftJoin(studentGroups, eq(studentGroups.id, studentInGroup.groupId))
+        .leftJoin(
+          studentPreferences,
+          and(
+            eq(studentPreferences.studentId, students.id),
+            eq(studentPreferences.moduleId, studentInModule.moduleId),
+          ),
+        )
+        .where(and(eq(studentInModule.moduleId, input.moduleId), eq(studentInModule.projectId, input.projectId)));
+
+      return rows.sort((a, b) => (a.preference ?? Infinity) - (b.preference ?? Infinity));
+    }),
+
+  // Manually assigns one student to the module (e.g. from the Anpassungen
+  // student dialog) without touching their preferences. Capacity is
+  // deliberately not enforced here — manual assignment is explicitly allowed
+  // to push a module past its max (see planning.md), same as the allocator
+  // itself never hard-blocks on it. onConflictDoNothing guards the rare
+  // double-submit race against student_in_module's composite primary key.
+  addStudent: publicProcedure
+    .input(projectScoped.extend({ moduleId: z.uuid(), studentId: z.uuid() }))
+    .mutation(async ({ input }) => {
+      await db
+        .insert(studentInModule)
+        .values({ moduleId: input.moduleId, studentId: input.studentId, projectId: input.projectId })
+        .onConflictDoNothing();
+      return { success: true as const };
+    }),
+
+  // Removes one student from the module (e.g. a manual correction in the
+  // Anpassungen roster view) without touching their preferences.
+  removeStudent: publicProcedure
+    .input(projectScoped.extend({ moduleId: z.uuid(), studentId: z.uuid() }))
+    .mutation(async ({ input }) => {
+      await db
+        .delete(studentInModule)
+        .where(
+          and(
+            eq(studentInModule.moduleId, input.moduleId),
+            eq(studentInModule.studentId, input.studentId),
+            eq(studentInModule.projectId, input.projectId),
+          ),
+        );
+      return { success: true as const };
     }),
 
   // Hard delete. Fails with a DB FK error if preferences/eligibility/blocking

@@ -1,20 +1,20 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { PhaseLayout } from "../components/PhaseLayout";
 
 export const Route = createFileRoute("/adjustments")({
-  component: AdjustmentsPage,
+  component: AdjustmentsLayout,
 });
 
-const tabs = [{ to: "/adjustments", label: "Anpassungen" }];
+const tabs = [
+  { to: "/adjustments", label: "Anpassungen" },
+  { to: "/adjustments/modules", label: "Module" },
+  { to: "/adjustments/students", label: "Schüler" },
+];
 
-function AdjustmentsPage() {
+function AdjustmentsLayout() {
   return (
     <PhaseLayout tabs={tabs}>
-      <h1 className="text-2xl font-semibold">Anpassungen</h1>
-      <p className="mt-1 text-muted-foreground">
-        Letzte manuelle Korrekturen am Zuteilungs-Ergebnis, z.B. Schüler ohne vollständige
-        Zuteilung händisch nachtragen. Analyse-Ansichten zur Modul-Auslastung folgen hier.
-      </p>
+      <Outlet />
     </PhaseLayout>
   );
 }
