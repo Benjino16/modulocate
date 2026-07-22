@@ -110,8 +110,12 @@ function VotePage() {
     }),
   );
 
+  // No activation distance: the grip handle (touch-none, its own listeners)
+  // is a dedicated drag control, not shared with the row's tap-to-open-info
+  // click, so there's nothing here for a movement threshold to disambiguate
+  // — it only made the handle feel laggy on pickup.
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(PointerSensor),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
