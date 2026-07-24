@@ -18,9 +18,11 @@ type Module = {
   description: string | null;
   teacher: string | null;
   scheduleLabel: string | null;
+  displayScheduleLabel: string | null;
   min: number;
   max: number;
   categoryIds: string[];
+  dateIds: string[];
 };
 
 function ModulesPage() {
@@ -98,7 +100,7 @@ function ModulesPage() {
 
               <h3 className="pr-8 font-semibold">{module.name}</h3>
               <p className="text-sm text-muted-foreground">
-                {module.scheduleLabel || "Kein Termin festgelegt"}
+                {module.displayScheduleLabel || "Kein Termin festgelegt"}
               </p>
               <p className="text-sm text-muted-foreground">Max. {module.max} Teilnehmer</p>
               <p className="text-sm text-muted-foreground">{module.teacher || "Kein Lehrer zugeteilt"}</p>

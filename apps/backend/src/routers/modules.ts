@@ -7,12 +7,14 @@ import {
   db,
   modules,
   moduleInCategory,
+  moduleInDate,
   studentInModule,
   students,
   rules,
   studentGroups,
   studentInGroup,
   studentPreferences,
+  resolveModuleDisplayScheduleLabels,
   type DbExecutor,
 } from "@modulocate/db";
 import { router, publicProcedure } from "../trpc";
@@ -45,6 +47,17 @@ async function loadModules(executor: DbExecutor, projectId: string, ids?: string
     list.push(row.categoryId);
     categoryIdsByModule.set(row.moduleId, list);
   }
+
+  const dateRows = await executor.select().from(moduleInDate).where(inArray(moduleInDate.moduleId, moduleIds));
+
+  const dateIdsByModule = new Map<string, string[]>();
+  for (const row of dateRows) {
+    const list = dateIdsByModule.get(row.moduleId) ?? [];
+    list.push(row.dateId);
+    dateIdsByModule.set(row.moduleId, list);
+  }
+
+  const displayScheduleLabelByModule = await resolveModuleDisplayScheduleLabels(executor, moduleIds);
 
   const studentRows = await executor
     .select({ moduleId: studentInModule.moduleId, studentId: studentInModule.studentId })
@@ -85,6 +98,11 @@ async function loadModules(executor: DbExecutor, projectId: string, ids?: string
   return moduleRows.map((module) => ({
     ...module,
     categoryIds: categoryIdsByModule.get(module.id) ?? [],
+    dateIds: dateIdsByModule.get(module.id) ?? [],
+    // Default display label when scheduleLabel wasn't explicitly set.
+    // `scheduleLabel` itself stays as stored (null when unset) so the edit
+    // dialog can still tell "unset" apart from "explicitly typed".
+    displayScheduleLabel: module.scheduleLabel || displayScheduleLabelByModule.get(module.id) || null,
     studentCount: studentCountByModule.get(module.id) ?? 0,
     medianPreference: median(assignedPreferencesByModule.get(module.id) ?? []),
   }));
@@ -112,7 +130,7 @@ export const modulesRouter = router({
     .input(moduleCreateInput.and(projectScoped))
     .mutation(async ({ input }) => {
       return db.transaction(async (tx) => {
-        const { categoryIds, ...fields } = input;
+        const { categoryIds, dateIds, ...fields } = input;
         if (fields.description !== undefined) {
           fields.description = sanitizeModuleDescription(fields.description);
         }
@@ -131,18 +149,29 @@ export const modulesRouter = router({
           );
         }
 
-        return { ...module, categoryIds };
+        if (dateIds.length > 0) {
+          await tx.insert(moduleInDate).values(
+            dateIds.map((dateId) => ({
+              moduleId: module.id,
+              dateId,
+              projectId: input.projectId,
+            })),
+          );
+        }
+
+        const [created] = await loadModules(tx, input.projectId, [module.id]);
+        return created;
       });
     }),
 
-  // Replaces the whole category set when `categoryIds` is provided, same
-  // full-replace convention as rules.subRules/blockedCategoryIds.
+  // Replaces the whole category/date set when `categoryIds`/`dateIds` is
+  // provided, same full-replace convention as rules.subRules/blockedCategoryIds.
   update: publicProcedure
     .input(moduleUpdateInput.and(projectScoped))
     .mutation(async ({ input }) => {
       return db.transaction(async (tx) => {
-        const { id, projectId, categoryIds, ...patch } = input;
-        if (patch.description !== undefined) {
+        const { id, projectId, categoryIds, dateIds, ...patch } = input;
+        if (typeof patch.description === "string") {
           patch.description = sanitizeModuleDescription(patch.description);
         }
 
@@ -161,6 +190,15 @@ export const modulesRouter = router({
           if (categoryIds.length > 0) {
             await tx.insert(moduleInCategory).values(
               categoryIds.map((categoryId) => ({ moduleId: id, categoryId, projectId })),
+            );
+          }
+        }
+
+        if (dateIds) {
+          await tx.delete(moduleInDate).where(eq(moduleInDate.moduleId, id));
+          if (dateIds.length > 0) {
+            await tx.insert(moduleInDate).values(
+              dateIds.map((dateId) => ({ moduleId: id, dateId, projectId })),
             );
           }
         }

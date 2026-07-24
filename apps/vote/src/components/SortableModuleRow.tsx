@@ -8,7 +8,7 @@ export function SortableModuleRow({
   rank,
   onOpenInfo,
 }: {
-  module: { id: string; name: string; teacher: string | null; scheduleLabel: string | null };
+  module: { id: string; name: string; teacher: string | null; displayScheduleLabel: string | null };
   rank: number;
   onOpenInfo: () => void;
 }) {
@@ -40,10 +40,10 @@ export function SortableModuleRow({
         aria-label={`Details zu ${module.name} anzeigen`}
       >
         <p className="truncate font-medium">{module.name}</p>
-        {(module.scheduleLabel || module.teacher) && (
+        {(module.displayScheduleLabel || module.teacher) && (
           <p className="truncate text-sm text-muted-foreground">
-            {module.scheduleLabel}
-            {module.scheduleLabel && module.teacher && " · "}
+            {module.displayScheduleLabel}
+            {module.displayScheduleLabel && module.teacher && " · "}
             {module.teacher}
           </p>
         )}

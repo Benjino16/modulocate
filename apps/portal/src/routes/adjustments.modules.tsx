@@ -22,7 +22,7 @@ type Module = {
   id: string;
   name: string;
   teacher: string | null;
-  scheduleLabel: string | null;
+  displayScheduleLabel: string | null;
   min: number;
   max: number;
   studentCount: number;
@@ -77,7 +77,7 @@ function AdjustmentsModulesPage() {
               <TableRow key={module.id} onClick={() => openRoster(module)} className="cursor-pointer">
                 <TableCell className="font-medium">{module.name}</TableCell>
                 <TableCell className="text-muted-foreground">
-                  {module.scheduleLabel || "–"}
+                  {module.displayScheduleLabel || "–"}
                 </TableCell>
                 <TableCell className="text-muted-foreground">{module.teacher || "–"}</TableCell>
                 <TableCell>

@@ -2,7 +2,15 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { and, eq, inArray } from "drizzle-orm";
 import { projectPhase } from "@modulocate/shared";
-import { db, modules, projects, students, studentPreferences, resolveStudentEligibility } from "@modulocate/db";
+import {
+  db,
+  modules,
+  projects,
+  students,
+  studentPreferences,
+  resolveStudentEligibility,
+  resolveModuleDisplayScheduleLabels,
+} from "@modulocate/db";
 import { router, protectedStudentProcedure } from "../trpc";
 
 export const voteRouter = router({
@@ -16,10 +24,16 @@ export const voteRouter = router({
     });
     const eligibleModuleIds = eligibility?.eligibleModuleIds ?? [];
     if (eligibleModuleIds.length === 0) return [];
-    return db
+    const moduleRows = await db
       .select()
       .from(modules)
       .where(and(eq(modules.projectId, ctx.student.projectId), inArray(modules.id, eligibleModuleIds)));
+
+    const displayScheduleLabelByModule = await resolveModuleDisplayScheduleLabels(db, eligibleModuleIds);
+    return moduleRows.map((module) => ({
+      ...module,
+      displayScheduleLabel: module.scheduleLabel || displayScheduleLabelByModule.get(module.id) || null,
+    }));
   }),
 
   myPreferences: protectedStudentProcedure.query(({ ctx }) =>

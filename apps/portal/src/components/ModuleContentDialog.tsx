@@ -77,7 +77,7 @@ export function ModuleContentDialog({
       id: module.id,
       projectId,
       name: form.name.trim(),
-      description: form.description.trim() || undefined,
+      description: form.description.trim() || null,
     });
   }
 

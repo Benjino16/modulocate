@@ -11,7 +11,7 @@ type ModuleInfo = {
   id: string;
   name: string;
   teacher: string | null;
-  scheduleLabel: string | null;
+  displayScheduleLabel: string | null;
   description: string | null;
 };
 
@@ -54,7 +54,7 @@ export function ModuleInfoDialog({
     setProgress(p);
   }
 
-  const meta = [module?.scheduleLabel, module?.teacher].filter(Boolean).join(" · ");
+  const meta = [module?.displayScheduleLabel, module?.teacher].filter(Boolean).join(" · ");
 
   return (
     <Dialog open={module !== null} onOpenChange={onOpenChange}>

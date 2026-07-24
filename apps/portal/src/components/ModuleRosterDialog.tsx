@@ -13,7 +13,7 @@ type ModuleSummary = {
   id: string;
   name: string;
   teacher: string | null;
-  scheduleLabel: string | null;
+  displayScheduleLabel: string | null;
   min: number;
   max: number;
 };
@@ -56,7 +56,7 @@ export function ModuleRosterDialog({
         </DialogHeader>
 
         <p className="-mt-2 text-sm text-muted-foreground">
-          {module?.scheduleLabel || "Kein Termin festgelegt"} · {module?.teacher || "Kein Lehrer zugeteilt"}
+          {module?.displayScheduleLabel || "Kein Termin festgelegt"} · {module?.teacher || "Kein Lehrer zugeteilt"}
         </p>
 
         {module && !isLoading && (

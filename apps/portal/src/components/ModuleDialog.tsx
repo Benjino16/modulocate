@@ -21,6 +21,7 @@ type Module = {
   min: number;
   max: number;
   categoryIds: string[];
+  dateIds: string[];
 };
 
 type FormState = {
@@ -30,6 +31,7 @@ type FormState = {
   min: string;
   max: string;
   categoryIds: string[];
+  dateIds: string[];
 };
 
 const emptyForm: FormState = {
@@ -39,6 +41,7 @@ const emptyForm: FormState = {
   min: "",
   max: "",
   categoryIds: [],
+  dateIds: [],
 };
 
 function formStateFor(module: Module | undefined): FormState {
@@ -50,6 +53,7 @@ function formStateFor(module: Module | undefined): FormState {
     min: String(module.min),
     max: String(module.max),
     categoryIds: module.categoryIds,
+    dateIds: module.dateIds,
   };
 }
 
@@ -74,6 +78,21 @@ export function ModuleDialog({
     enabled: open,
   });
   const categoryOptions = categories?.map((category) => ({ value: category.id, label: category.name })) ?? [];
+
+  const { data: dates } = useQuery({
+    ...trpc.dates.list.queryOptions({ projectId }),
+    enabled: open,
+  });
+  const dateOptions = dates?.map((date) => ({ value: date.id, label: date.name })) ?? [];
+
+  // Preview of what scheduleLabel falls back to when left empty — the
+  // selected dates' names, comma-separated — so the placeholder shows
+  // exactly what will be displayed instead of this field.
+  const selectedDateLabels = form.dateIds
+    .map((id) => dateOptions.find((option) => option.value === id)?.label)
+    .filter((label): label is string => !!label);
+  const scheduleLabelPlaceholder =
+    selectedDateLabels.length > 0 ? selectedDateLabels.join(", ") : "z. B. Jeden Montag, Q2 - Mi, Block";
 
   useEffect(() => {
     if (open) {
@@ -128,20 +147,35 @@ export function ModuleDialog({
     if (!Number.isInteger(max) || max < 0) return setError("Max. Teilnehmer muss eine positive Zahl sein.");
     if (max < min) return setError("Max. Teilnehmer muss größer oder gleich Min. sein.");
 
-    const payload = {
-      projectId,
-      name: form.name.trim(),
-      teacher: form.teacher.trim() || undefined,
-      scheduleLabel: form.scheduleLabel.trim() || undefined,
-      min,
-      max,
-      categoryIds: form.categoryIds,
-    };
+    const teacher = form.teacher.trim();
+    const scheduleLabel = form.scheduleLabel.trim();
 
     if (module) {
-      updateModule.mutate({ id: module.id, ...payload });
+      // Explicit null (not undefined) to clear — tRPC's JSON transport drops
+      // undefined keys entirely, so omitting the field would leave the old
+      // value untouched instead of clearing it.
+      updateModule.mutate({
+        id: module.id,
+        projectId,
+        name: form.name.trim(),
+        teacher: teacher || null,
+        scheduleLabel: scheduleLabel || null,
+        min,
+        max,
+        categoryIds: form.categoryIds,
+        dateIds: form.dateIds,
+      });
     } else {
-      createModule.mutate(payload);
+      createModule.mutate({
+        projectId,
+        name: form.name.trim(),
+        teacher: teacher || undefined,
+        scheduleLabel: scheduleLabel || undefined,
+        min,
+        max,
+        categoryIds: form.categoryIds,
+        dateIds: form.dateIds,
+      });
     }
   }
 
@@ -184,7 +218,7 @@ export function ModuleDialog({
             <Label htmlFor="module-schedule">Termin (Anzeige-Label)</Label>
             <Input
               id="module-schedule"
-              placeholder="z. B. Jeden Montag, Q2 - Mi, Block"
+              placeholder={scheduleLabelPlaceholder}
               value={form.scheduleLabel}
               onChange={(e) => setForm({ ...form, scheduleLabel: e.target.value })}
             />
@@ -224,6 +258,18 @@ export function ModuleDialog({
               onChange={(categoryIds) => setForm({ ...form, categoryIds })}
               placeholder="Keine Kategorien"
               emptyText="Keine Kategorien vorhanden."
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="module-dates">Termine</Label>
+            <MultiSelect
+              id="module-dates"
+              options={dateOptions}
+              selected={form.dateIds}
+              onChange={(dateIds) => setForm({ ...form, dateIds })}
+              placeholder="Keine Termine"
+              emptyText="Keine Termine vorhanden."
             />
           </div>
 
