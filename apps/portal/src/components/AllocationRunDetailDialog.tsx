@@ -38,6 +38,7 @@ export function AllocationRunDetailDialog({
     trpc.allocationRuns.load.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: trpc.allocationRuns.list.queryKey({ projectId }) });
+        queryClient.invalidateQueries({ queryKey: trpc.projects.list.queryKey() });
         onOpenChange(false);
       },
     }),

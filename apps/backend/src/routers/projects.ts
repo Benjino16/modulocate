@@ -5,7 +5,7 @@ import { projectCreateInput, projectPhase } from "@modulocate/shared";
 import { db, projects, students } from "@modulocate/db";
 import { router, publicProcedure } from "../trpc";
 import { projectScoped } from "./shared";
-import { enqueueVotingInvites } from "./students";
+import { enqueueVotingInvites, enqueueVotingResults } from "./students";
 
 // Stopgap until auth/sessions exist: lists every project so the portal's
 // project switcher has something to select from (see projectScoped in ./shared).
@@ -82,5 +82,34 @@ export const projectsRouter = router({
     });
 
     return { project };
+  }),
+
+  // reviewing -> published (see planning.md Phase 5 "Publication"). Locks the
+  // allocation in and dispatches the final module assignment to every
+  // student — same retry-safe shape as startElection: a retry after a
+  // partial failure just re-sends already-queued results.
+  publishResults: publicProcedure.input(projectScoped).mutation(async ({ input }) => {
+    const { project, studentIds } = await db.transaction(async (tx) => {
+      const [project] = await tx.select().from(projects).where(eq(projects.id, input.projectId));
+      if (!project) throw new TRPCError({ code: "NOT_FOUND" });
+      if (project.phase !== projectPhase.enum.reviewing) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: `Die Ergebnisse können nur aus Phase "${projectPhase.enum.reviewing}" versendet werden (aktuell: "${project.phase}").`,
+        });
+      }
+
+      const [updated] = await tx
+        .update(projects)
+        .set({ phase: projectPhase.enum.published })
+        .where(eq(projects.id, input.projectId))
+        .returning();
+
+      const allStudents = await tx.select({ id: students.id }).from(students).where(eq(students.projectId, input.projectId));
+      return { project: updated, studentIds: allStudents.map((s) => s.id) };
+    });
+
+    const resultsEnqueued = await enqueueVotingResults(input.projectId, studentIds);
+    return { project, resultsEnqueued };
   }),
 });

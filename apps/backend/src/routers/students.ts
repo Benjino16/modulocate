@@ -175,3 +175,18 @@ export async function enqueueVotingInvites(projectId: string, studentIds?: strin
 
   return recipients.length;
 }
+
+// Shared with projects.publishResults, which sends every student their final
+// module assignment once the allocation is published.
+export async function enqueueVotingResults(projectId: string, studentIds?: string[]) {
+  const recipients = await loadStudents(db, projectId, studentIds);
+
+  await getEmailQueue().addBulk(
+    recipients.map((student) => ({
+      name: EmailJobName.VotingResults,
+      data: { studentId: student.id, projectId },
+    })),
+  );
+
+  return recipients.length;
+}
