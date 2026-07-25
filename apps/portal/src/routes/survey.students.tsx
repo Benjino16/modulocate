@@ -18,9 +18,10 @@ export const Route = createFileRoute("/survey/students")({
   component: SurveyStudentsPage,
 });
 
-// Vote app isn't deployed yet, mirrors the worker's own VOTE_APP_URL default
-// (apps/worker/src/processors/votingInvite.ts) until it has a real URL.
-const VOTE_APP_URL = "http://localhost:5174";
+// Portal and vote are same-origin behind Traefik (path-routed to /portal and
+// /voting — see infra/compose.yaml), so this can just use the page's own
+// origin instead of hardcoding a host.
+const VOTE_APP_URL = `${window.location.origin}/voting`;
 
 type Student = {
   id: string;

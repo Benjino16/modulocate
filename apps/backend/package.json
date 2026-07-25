@@ -9,7 +9,6 @@
   "dependencies": {
     "@better-auth/drizzle-adapter": "^1.6.25",
     "@fastify/cookie": "^11.1.2",
-    "@fastify/cors": "^11.3.0",
     "@modulocate/db": "workspace:*",
     "@modulocate/mailer": "workspace:*",
     "@modulocate/queue": "workspace:*",

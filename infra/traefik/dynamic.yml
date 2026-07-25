@@ -1,0 +1,66 @@
+# Static routing config for Traefik (infra/compose.yaml) — deliberately not
+# using Traefik's Docker-label provider: the set of routed services here is
+# fixed (backend/portal/vote), so a plain file is simpler and doesn't need a
+# docker.sock mount into the Traefik container at all.
+#
+# No Host() match on the routers on purpose: dev needs to be reachable from
+# other devices on the LAN (phone testing the vote flow, showing the portal
+# to someone else), which means whatever hostname/IP the browser used to
+# reach this machine (modulocate.localhost, a LAN IP, <hostname>.local via
+# mDNS) has to work identically — so routing is by path only, and the
+# redirect middlewares below capture scheme+host from the actual request
+# instead of hardcoding modulocate.localhost.
+http:
+  routers:
+    backend:
+      rule: "PathPrefix(`/api`)"
+      service: backend
+    # Vite's base ("/portal/"/"/voting/") only serves index.html for the
+    # exact slash-terminated path — a bare "/portal"/"/voting" 404s in Vite
+    # itself. The add-trailing-slash-* middlewares only fire on that exact
+    # no-slash path (redirectRegex no-ops otherwise), so /portal/* keeps
+    # working normally.
+    portal:
+      rule: "PathPrefix(`/portal`)"
+      service: portal
+      middlewares:
+        - add-trailing-slash-portal
+    vote:
+      rule: "PathPrefix(`/voting`)"
+      service: vote
+      middlewares:
+        - add-trailing-slash-vote
+    # Bare "/" has no meaningful landing page of its own — send it to /portal.
+    root:
+      rule: "Path(`/`)"
+      service: portal
+      middlewares:
+        - redirect-root
+
+  middlewares:
+    redirect-root:
+      redirectRegex:
+        regex: "^(https?://[^/]+)/$"
+        replacement: "${1}/portal/"
+    add-trailing-slash-portal:
+      redirectRegex:
+        regex: "^(https?://[^/]+)/portal$"
+        replacement: "${1}/portal/"
+    add-trailing-slash-vote:
+      redirectRegex:
+        regex: "^(https?://[^/]+)/voting$"
+        replacement: "${1}/voting/"
+
+  services:
+    backend:
+      loadBalancer:
+        servers:
+          - url: "http://backend:3000"
+    portal:
+      loadBalancer:
+        servers:
+          - url: "http://portal:5173"
+    vote:
+      loadBalancer:
+        servers:
+          - url: "http://vote:5174"

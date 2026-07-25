@@ -8,7 +8,9 @@ import { TRPCProvider, trpcClient } from "./trpc";
 import { ProjectProvider } from "./lib/project-context";
 
 const queryClient = new QueryClient();
-const router = createRouter({ routeTree });
+// basepath matches the /portal PathPrefix Traefik routes this app under
+// (see infra/compose.yaml) and the base in vite.config.ts.
+const router = createRouter({ routeTree, basepath: "/portal" });
 
 declare module "@tanstack/react-router" {
   interface Register {

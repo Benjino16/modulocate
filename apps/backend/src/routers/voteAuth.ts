@@ -5,13 +5,11 @@ import { db, students } from "@modulocate/db";
 import { router, publicProcedure } from "../trpc";
 import { STUDENT_SESSION_COOKIE, signStudentSession } from "../studentAuth";
 
-// vote-web and backend are different origins but the same site (same
-// hostname, different port only — port isn't part of "site" for SameSite
-// purposes), so Lax already lets the cookie through on same-host requests.
-// Not Secure/None: dev only runs over plain http, including from a phone on
-// the LAN, where Secure cookies get silently dropped (no HTTPS there).
-// TODO: once frontend/backend move to actually different hosts (production),
-// this needs secure: true + sameSite: "none" behind HTTPS.
+// vote-web and backend are same-origin behind Traefik
+// (http://modulocate.localhost, path-routed — see infra/compose.yaml), in
+// both dev and prod, so sameSite: "lax" is correct permanently, not just a
+// dev shortcut. secure stays false since this still runs over plain HTTP;
+// flip to true once real HTTPS termination is set up in front of Traefik.
 const COOKIE_OPTIONS = {
   httpOnly: true,
   secure: false,

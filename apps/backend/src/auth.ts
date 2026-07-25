@@ -30,8 +30,6 @@ export const auth = betterAuth({
       generateId: () => randomUUID(),
     },
   },
-  // Dev-only: mirrors the CORS regex in index.ts (any host on port
-  // 5173/5174) so LAN/phone testing works. Tighten to an explicit allowlist
-  // before this ever runs in production (see planning.md Section 6).
-  trustedOrigins: ["http://*:5173", "http://*:5174"],
+  // No trustedOrigins needed: portal is same-origin with the backend behind
+  // Traefik (http://modulocate.localhost), not a separate host/port.
 });

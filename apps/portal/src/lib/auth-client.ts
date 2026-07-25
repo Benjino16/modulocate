@@ -1,7 +1,7 @@
 import { createAuthClient } from "better-auth/react";
 
-// Uses the page's own hostname (not a hardcoded "localhost"), same reasoning
-// as trpc.ts — keeps LAN/phone dev access working.
-export const authClient = createAuthClient({
-  baseURL: `http://${window.location.hostname}:3000`,
-});
+// No baseURL: portal and backend are same-origin behind Traefik
+// (http://modulocate.localhost — see infra/compose.yaml), so better-auth's
+// client falls back to window.location.origin + its default basePath
+// (/api/auth), which is exactly where the backend mounts it (index.ts).
+export const authClient = createAuthClient();

@@ -1,6 +1,5 @@
 import "dotenv/config";
 import Fastify from "fastify";
-import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
 import { fastifyTRPCPlugin } from "@trpc/server/adapters/fastify";
 import { appRouter } from "./router";
@@ -10,17 +9,10 @@ import { bootstrapAdmin } from "./bootstrapAdmin";
 
 const server = Fastify({ logger: true });
 
-// credentials: true + an explicit origin check (not "*") is required for the
-// student session cookie (vote-web) and the better-auth session cookie
-// (portal-web) to work — both are cross-origin from the backend, see
-// planning.md "Locked Decision: Two Separate Auth Mechanisms". Matches port
-// 5173/5174 on any host (not just localhost) so the dev servers are
-// reachable from a phone on the LAN via --host — fine for local dev, tighten
-// to an explicit allowlist before this ever runs in production.
-await server.register(cors, {
-  origin: /^http:\/\/[^/]+:517[34]$/,
-  credentials: true,
-});
+// No CORS needed: backend, portal and vote all live behind Traefik under one
+// origin (http://modulocate.localhost, path-routed to /api, /portal,
+// /voting), so every request — including the student session cookie and the
+// better-auth session cookie — is same-origin. See infra/compose.yaml.
 await server.register(cookie);
 
 // better-auth's own fetch-Request handler, bridged onto Fastify. Reuses
@@ -52,7 +44,7 @@ server.route({
 });
 
 server.register(fastifyTRPCPlugin, {
-  prefix: "/trpc",
+  prefix: "/api/trpc",
   trpcOptions: {
     router: appRouter,
     createContext,

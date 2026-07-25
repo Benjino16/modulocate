@@ -7,7 +7,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "turbo run dev",
+    "dev": "docker compose -f infra/compose.yaml -f infra/compose.dev.yaml up --build --watch",
     "build": "turbo run build"
   },
   "devDependencies": {

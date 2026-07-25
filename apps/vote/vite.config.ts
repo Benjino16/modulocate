@@ -3,13 +3,25 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { tanstackRouter } from '@tanstack/router-plugin/vite'
 
-// Port is fixed (not Vite's 5173 default) because the worker's voting-invite
-// email hardcodes VOTE_APP_URL=http://localhost:5174 as its fallback, and the
-// backend's CORS origin list expects this app on 5174 specifically — see
-// apps/worker/src/processors/votingInvite.ts and apps/backend/src/index.ts.
+// Served under /voting behind Traefik (see infra/compose.yaml and
+// infra/traefik/dynamic.yml), so base matches the router's basepath in
+// main.tsx. host: true so the dev server listens on all interfaces inside
+// the container, not just its own loopback. hmr.clientPort points the
+// browser's HMR websocket back at Traefik's public entrypoint instead of
+// the container's internal port; no hmr.host, so it defaults to whatever
+// hostname/IP the browser actually used (modulocate.localhost, a LAN IP,
+// <hostname>.local via mDNS) — Traefik's routing isn't Host-restricted
+// either, so any of those works for LAN/phone testing. The dev server port
+// itself is no longer externally load-bearing (purely internal to the
+// Docker network now).
 export default defineConfig({
   plugins: [tanstackRouter({ target: 'react', autoCodeSplitting: true }), react(), tailwindcss()],
+  base: '/voting/',
   server: {
+    host: true,
     port: 5174,
+    hmr: {
+      clientPort: 80,
+    },
   },
 })

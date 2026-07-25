@@ -1,0 +1,88 @@
+# Hot-reload overlay on top of compose.yaml — uses Docker Compose Watch
+# (develop.watch) instead of hand-rolled bind mounts. src/ changes get
+# synced straight into the running container (no node_modules-shadowing
+# concern, since this is a one-way sync on change, not a persistent mount).
+#
+# Only `action: sync` is used here, deliberately not `rebuild`: tried
+# rebuild-on-package.json-change first, but in this Docker/Compose
+# combination `docker compose watch`'s rebuild goes through buildx bake
+# with the *whole* compose file, not just the triggering service — building
+# an unrelated service's image too and leaving its container recreated but
+# never restarted (reproduced twice, isolating each service into its own
+# Dockerfile didn't help). A silently-dead unrelated service is worse than
+# the alternative, so: editing package.json/vite.config.ts/tsconfig.json
+# needs a manual `docker compose -f infra/compose.yaml -f
+# infra/compose.dev.yaml up --build` for now.
+#
+# Usage: docker compose -f infra/compose.yaml -f infra/compose.dev.yaml watch
+# (or `up --watch` to start + watch in one command)
+services:
+  backend:
+    develop:
+      watch:
+        - path: ../apps/backend/src
+          action: sync
+          target: /app/apps/backend/src
+        - path: ../packages/allocation-engine/src
+          action: sync
+          target: /app/packages/allocation-engine/src
+        - path: ../packages/db/src
+          action: sync
+          target: /app/packages/db/src
+        - path: ../packages/mailer/src
+          action: sync
+          target: /app/packages/mailer/src
+        - path: ../packages/queue/src
+          action: sync
+          target: /app/packages/queue/src
+        - path: ../packages/shared/src
+          action: sync
+          target: /app/packages/shared/src
+
+  worker:
+    develop:
+      watch:
+        - path: ../apps/worker/src
+          action: sync
+          target: /app/apps/worker/src
+        - path: ../packages/allocation-engine/src
+          action: sync
+          target: /app/packages/allocation-engine/src
+        - path: ../packages/db/src
+          action: sync
+          target: /app/packages/db/src
+        - path: ../packages/mailer/src
+          action: sync
+          target: /app/packages/mailer/src
+        - path: ../packages/queue/src
+          action: sync
+          target: /app/packages/queue/src
+        - path: ../packages/shared/src
+          action: sync
+          target: /app/packages/shared/src
+
+  portal:
+    develop:
+      watch:
+        - path: ../apps/portal/src
+          action: sync
+          target: /app/apps/portal/src
+        - path: ../packages/shared/src
+          action: sync
+          target: /app/packages/shared/src
+        - path: ../packages/ui/src
+          action: sync
+          target: /app/packages/ui/src
+
+  vote:
+    develop:
+      watch:
+        - path: ../apps/vote/src
+          action: sync
+          target: /app/apps/vote/src
+        - path: ../packages/shared/src
+          action: sync
+          target: /app/packages/shared/src
+        - path: ../packages/ui/src
+          action: sync
+          target: /app/packages/ui/src
