@@ -3,15 +3,15 @@ import { TRPCError } from "@trpc/server";
 import { and, eq } from "drizzle-orm";
 import { moduleCategoryCreateInput, moduleCategoryUpdateInput } from "@modulocate/shared";
 import { db, moduleCategories } from "@modulocate/db";
-import { router, publicProcedure } from "../trpc";
+import { router, staffProcedure } from "../trpc";
 import { projectScoped } from "./shared";
 
 export const moduleCategoriesRouter = router({
-  list: publicProcedure.input(projectScoped).query(({ input }) =>
+  list: staffProcedure.input(projectScoped).query(({ input }) =>
     db.select().from(moduleCategories).where(eq(moduleCategories.projectId, input.projectId)),
   ),
 
-  get: publicProcedure
+  get: staffProcedure
     .input(projectScoped.extend({ id: z.uuid() }))
     .query(async ({ input }) => {
       const [category] = await db
@@ -22,14 +22,14 @@ export const moduleCategoriesRouter = router({
       return category;
     }),
 
-  create: publicProcedure
+  create: staffProcedure
     .input(moduleCategoryCreateInput.and(projectScoped))
     .mutation(async ({ input }) => {
       const [category] = await db.insert(moduleCategories).values(input).returning();
       return category;
     }),
 
-  update: publicProcedure
+  update: staffProcedure
     .input(moduleCategoryUpdateInput.and(projectScoped))
     .mutation(async ({ input }) => {
       const { id, projectId, ...patch } = input;
@@ -44,7 +44,7 @@ export const moduleCategoriesRouter = router({
 
   // Hard delete. Fails with a DB FK error if modules/sub-rules/blocking rows
   // still reference the category — same reasoning as modules.remove above.
-  remove: publicProcedure
+  remove: staffProcedure
     .input(projectScoped.extend({ id: z.uuid() }))
     .mutation(async ({ input }) => {
       const [category] = await db

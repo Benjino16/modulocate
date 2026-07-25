@@ -7,23 +7,103 @@ import {
   timestamp,
   jsonb,
   primaryKey,
+  index,
 } from "drizzle-orm/pg-core";
 import type { ProjectPhase } from "@modulocate/shared";
 
 // --- Account / Admin ---
 
+// Staff (admin/teacher) auth via better-auth — see planning.md "Locked
+// Decision: Two Separate Auth Mechanisms". Shape/naming (users/sessions/
+// accounts/verifications, plural) matches better-auth's core schema; ids are
+// text (not uuid()) because better-auth generates/compares them as plain
+// strings, but auth.ts's `generateId` still fills them with crypto.randomUUID()
+// so values stay uniform with every uuid() PK elsewhere in this file.
 export const users = pgTable("users", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  username: text("username").notNull().unique(),
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
   email: text("email").notNull().unique(),
-  passwordHash: text("password_hash").notNull(),
+  emailVerified: boolean("email_verified").notNull().default(false),
+  image: text("image"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });
+
+export const sessions = pgTable(
+  "sessions",
+  {
+    id: text("id").primaryKey(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    token: text("token").notNull().unique(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+  },
+  (table) => [index("sessions_user_id_idx").on(table.userId)],
+);
+
+// One row per sign-in method; the email/password provider stores its hash
+// here as `password` (providerId: "credential"), not on `users` directly —
+// that's better-auth's own layout, leaves room for OAuth providers later
+// without a users-table migration.
+export const accounts = pgTable(
+  "accounts",
+  {
+    id: text("id").primaryKey(),
+    accountId: text("account_id").notNull(),
+    providerId: text("provider_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    idToken: text("id_token"),
+    accessTokenExpiresAt: timestamp("access_token_expires_at", { withTimezone: true }),
+    refreshTokenExpiresAt: timestamp("refresh_token_expires_at", { withTimezone: true }),
+    scope: text("scope"),
+    password: text("password"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [index("accounts_user_id_idx").on(table.userId)],
+);
+
+// Email verification / password-reset tokens. Unused today (no verification
+// email flow wired up yet) but required by better-auth's core schema.
+export const verifications = pgTable(
+  "verifications",
+  {
+    id: text("id").primaryKey(),
+    identifier: text("identifier").notNull(),
+    value: text("value").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [index("verifications_identifier_idx").on(table.identifier)],
+);
 
 export const auditLogs = pgTable("audit_logs", {
   id: uuid("id").primaryKey().defaultRandom(),
   datetime: timestamp("datetime", { withTimezone: true }).notNull().defaultNow(),
   log: text("log").notNull(),
-  userId: uuid("user_id").references(() => users.id),
+  userId: text("user_id").references(() => users.id),
 });
 
 // --- Module-System ---
@@ -256,7 +336,7 @@ export const emailLog = pgTable("email_log", {
   id: uuid("id").primaryKey().defaultRandom(),
   projectId: uuid("project_id").references(() => projects.id),
   studentId: uuid("student_id").references(() => students.id),
-  userId: uuid("user_id").references(() => users.id),
+  userId: text("user_id").references(() => users.id),
   type: text("type").notNull(),
   recipient: text("recipient").notNull(),
   status: text("status").notNull(),

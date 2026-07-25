@@ -13,7 +13,7 @@ import {
   listAllocationRuns,
   type AllocationRunRecord,
 } from "@modulocate/queue";
-import { router, publicProcedure } from "../trpc";
+import { router, staffProcedure } from "../trpc";
 import { projectScoped } from "./shared";
 
 // Tile-list shape: everything but the (potentially large) assignments/issues
@@ -63,7 +63,7 @@ async function enrichIssues(issues: NonNullable<AllocationRunRecord["result"]>["
 }
 
 export const allocationRunsRouter = router({
-  list: publicProcedure.input(projectScoped).query(async ({ input }) => {
+  list: staffProcedure.input(projectScoped).query(async ({ input }) => {
     const runs = await listAllocationRuns(input.projectId);
     return runs.map(toSummary);
   }),
@@ -72,7 +72,7 @@ export const allocationRunsRouter = router({
   // every issue joined with the student/module name it refers to. Doesn't
   // return `assignments` — `load` reads those straight from Redis when it
   // actually needs them, the dialog never does.
-  get: publicProcedure
+  get: staffProcedure
     .input(projectScoped.extend({ id: z.uuid() }))
     .query(async ({ input }) => {
       const run = await getAllocationRun(input.projectId, input.id);
@@ -87,7 +87,7 @@ export const allocationRunsRouter = router({
   // Writes the run record with status "running" synchronously (so the tile
   // shows up on the portal immediately) before handing the actual
   // computation off to the worker via BullMQ.
-  start: publicProcedure
+  start: staffProcedure
     .input(allocationRunCreateInput.and(projectScoped))
     .mutation(async ({ input }) => {
       const id = randomUUID();
@@ -112,7 +112,7 @@ export const allocationRunsRouter = router({
       return { id };
     }),
 
-  remove: publicProcedure
+  remove: staffProcedure
     .input(projectScoped.extend({ id: z.uuid() }))
     .mutation(async ({ input }) => {
       const deleted = await deleteAllocationRun(input.projectId, input.id);
@@ -127,7 +127,7 @@ export const allocationRunsRouter = router({
   // also flips the phase allocating -> reviewing (planning.md: "Phase 4 ...
   // begins" here); re-loading a different run while already reviewing is
   // explicitly allowed by planning.md and is a no-op on the phase.
-  load: publicProcedure
+  load: staffProcedure
     .input(projectScoped.extend({ id: z.uuid() }))
     .mutation(async ({ input }) => {
       const run = await getAllocationRun(input.projectId, input.id);

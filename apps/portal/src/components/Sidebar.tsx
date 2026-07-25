@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Link } from "@tanstack/react-router";
-import { ChevronsUpDown, Plus, Settings, User } from "lucide-react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { ChevronsUpDown, LogOut, Plus, Settings, User } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,6 +11,7 @@ import {
 import { cn } from "@modulocate/ui/lib/utils";
 import type { ProjectPhase } from "@modulocate/shared";
 import { useProject } from "../lib/project-context";
+import { authClient } from "../lib/auth-client";
 import { ProjectDialog } from "./ProjectDialog";
 
 const phases = [
@@ -37,6 +38,12 @@ export function Sidebar() {
   const currentProject = projects.find((p) => p.id === projectId);
   const currentStep = currentProject ? projectPhaseToStep[currentProject.phase] : undefined;
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
+  const navigate = useNavigate();
+
+  async function handleLogout() {
+    await authClient.signOut();
+    navigate({ to: "/login" });
+  }
 
   return (
     <aside className="flex h-screen w-64 shrink-0 flex-col border-r bg-background">
@@ -115,6 +122,16 @@ export function Sidebar() {
           </span>
           Account
         </Link>
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="flex items-center gap-2 rounded-md p-2 text-left text-sm hover:bg-accent"
+        >
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-secondary">
+            <LogOut className="size-4" />
+          </span>
+          Abmelden
+        </button>
       </div>
     </aside>
   );

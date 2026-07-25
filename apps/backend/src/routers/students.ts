@@ -12,7 +12,7 @@ import {
   resolveStudentModuleOptions,
 } from "@modulocate/db";
 import { EmailJobName, getEmailQueue } from "@modulocate/queue";
-import { router, publicProcedure } from "../trpc";
+import { router, staffProcedure } from "../trpc";
 import { projectScoped, type DbExecutor } from "./shared";
 
 // Attaches each student's "Klasse" (single student_in_group membership, left-
@@ -49,19 +49,19 @@ async function loadStudents(executor: DbExecutor, projectId: string, ids?: strin
 }
 
 export const studentsRouter = router({
-  list: publicProcedure.input(projectScoped).query(({ input }) => loadStudents(db, input.projectId)),
+  list: staffProcedure.input(projectScoped).query(({ input }) => loadStudents(db, input.projectId)),
 
-  ruleCompliance: publicProcedure
+  ruleCompliance: staffProcedure
     .input(projectScoped)
     .query(({ input }) => resolveRuleCompliance(db, { projectId: input.projectId })),
 
   // Eligible modules for the manual-assignment dialog, each annotated with
   // this student's own preference rank and whether they're already assigned.
-  moduleOptions: publicProcedure
+  moduleOptions: staffProcedure
     .input(projectScoped.extend({ studentId: z.uuid() }))
     .query(({ input }) => resolveStudentModuleOptions(db, { projectId: input.projectId, studentId: input.studentId })),
 
-  get: publicProcedure
+  get: staffProcedure
     .input(projectScoped.extend({ id: z.uuid() }))
     .query(async ({ input }) => {
       const [student] = await loadStudents(db, input.projectId, [input.id]);
@@ -69,7 +69,7 @@ export const studentsRouter = router({
       return student;
     }),
 
-  create: publicProcedure
+  create: staffProcedure
     .input(studentCreateInput.and(projectScoped))
     .mutation(async ({ input }) => {
       const { groupId, ...rest } = input;
@@ -86,7 +86,7 @@ export const studentsRouter = router({
       });
     }),
 
-  update: publicProcedure
+  update: staffProcedure
     .input(studentUpdateInput.and(projectScoped))
     .mutation(async ({ input }) => {
       const { id, projectId, groupId, ...patch } = input;
@@ -126,7 +126,7 @@ export const studentsRouter = router({
   // fails with a DB FK error if preferences/eligibility/blocking rows still
   // reference the student — deliberately left as the DB default (no
   // onDelete) rather than guessing a cascade policy; see planning.md.
-  remove: publicProcedure
+  remove: staffProcedure
     .input(projectScoped.extend({ id: z.uuid() }))
     .mutation(async ({ input }) => {
       const [student] = await db.transaction(async (tx) => {
@@ -146,7 +146,7 @@ export const studentsRouter = router({
   // address only retries itself and the worker's rate limiter throttles the
   // whole batch against SMTP limits. Returns immediately — see email_log for
   // delivery status once the worker processes the batch.
-  sendVotingInvites: publicProcedure
+  sendVotingInvites: staffProcedure
     .input(projectScoped.extend({ studentIds: z.array(z.uuid()).optional() }))
     .mutation(async ({ input }) => {
       const enqueued = await enqueueVotingInvites(input.projectId, input.studentIds);

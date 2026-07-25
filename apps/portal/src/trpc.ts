@@ -8,6 +8,13 @@ export const trpcClient = createTRPCClient<AppRouter>({
   links: [
     httpBatchLink({
       url: `http://${window.location.hostname}:3000/trpc`,
+      // fetch() defaults to credentials: "same-origin", which drops the
+      // better-auth session cookie since portal (5173) and backend (3000)
+      // are different origins — same reason voteAuthRouter needs
+      // credentials: true on the CORS side in index.ts.
+      fetch(url, options) {
+        return fetch(url, { ...options, credentials: "include" });
+      },
     }),
   ],
 });

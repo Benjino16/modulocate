@@ -11,7 +11,7 @@ import {
   ruleBlockedDate,
   type DbExecutor,
 } from "@modulocate/db";
-import { router, publicProcedure } from "../trpc";
+import { router, staffProcedure } from "../trpc";
 import { projectScoped } from "./shared";
 
 // Batch-loads rules with their nested sub-rules/categoryIds and blocked
@@ -86,9 +86,9 @@ async function loadRules(executor: DbExecutor, projectId: string, ids?: string[]
 }
 
 export const rulesRouter = router({
-  list: publicProcedure.input(projectScoped).query(({ input }) => loadRules(db, input.projectId)),
+  list: staffProcedure.input(projectScoped).query(({ input }) => loadRules(db, input.projectId)),
 
-  get: publicProcedure
+  get: staffProcedure
     .input(projectScoped.extend({ id: z.uuid() }))
     .query(async ({ input }) => {
       const [rule] = await loadRules(db, input.projectId, [input.id]);
@@ -96,7 +96,7 @@ export const rulesRouter = router({
       return rule;
     }),
 
-  create: publicProcedure
+  create: staffProcedure
     .input(ruleCreateInput.and(projectScoped))
     .mutation(async ({ input }) => {
       return db.transaction(async (tx) => {
@@ -168,7 +168,7 @@ export const rulesRouter = router({
   // Replaces the whole sub-rule / blocked-category / blocked-date set when
   // provided (see ruleUpdateInput's comment in packages/shared) rather than
   // diffing individual rows — deleting sub_rules cascades to category_in_sub_rule.
-  update: publicProcedure
+  update: staffProcedure
     .input(ruleUpdateInput.and(projectScoped))
     .mutation(async ({ input }) => {
       return db.transaction(async (tx) => {
@@ -246,7 +246,7 @@ export const rulesRouter = router({
   // Hard delete — rules have no soft-delete field in db_planning.md. Cascades
   // to sub_rules/category_in_sub_rule; groups/students referencing this rule
   // just fall back to null (see schema.ts onDelete: "set null").
-  remove: publicProcedure
+  remove: staffProcedure
     .input(projectScoped.extend({ id: z.uuid() }))
     .mutation(async ({ input }) => {
       const [rule] = await db

@@ -7,6 +7,7 @@
     "dev": "tsx watch src/index.ts"
   },
   "dependencies": {
+    "@better-auth/drizzle-adapter": "^1.6.25",
     "@fastify/cookie": "^11.1.2",
     "@fastify/cors": "^11.3.0",
     "@modulocate/db": "workspace:*",
@@ -14,6 +15,7 @@
     "@modulocate/queue": "workspace:*",
     "@modulocate/shared": "workspace:*",
     "@trpc/server": "^11.18.0",
+    "better-auth": "^1.6.25",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
     "fastify": "^5.10.0",

@@ -3,11 +3,11 @@ import { TRPCError } from "@trpc/server";
 import { and, count, eq } from "drizzle-orm";
 import { dateCreateInput, dateUpdateInput } from "@modulocate/shared";
 import { db, dates, moduleInDate } from "@modulocate/db";
-import { router, publicProcedure } from "../trpc";
+import { router, staffProcedure } from "../trpc";
 import { projectScoped } from "./shared";
 
 export const datesRouter = router({
-  list: publicProcedure.input(projectScoped).query(({ input }) =>
+  list: staffProcedure.input(projectScoped).query(({ input }) =>
     db
       .select({
         id: dates.id,
@@ -21,7 +21,7 @@ export const datesRouter = router({
       .groupBy(dates.id),
   ),
 
-  get: publicProcedure
+  get: staffProcedure
     .input(projectScoped.extend({ id: z.uuid() }))
     .query(async ({ input }) => {
       const [date] = await db
@@ -32,14 +32,14 @@ export const datesRouter = router({
       return date;
     }),
 
-  create: publicProcedure
+  create: staffProcedure
     .input(dateCreateInput.and(projectScoped))
     .mutation(async ({ input }) => {
       const [date] = await db.insert(dates).values(input).returning();
       return date;
     }),
 
-  update: publicProcedure
+  update: staffProcedure
     .input(dateUpdateInput.and(projectScoped))
     .mutation(async ({ input }) => {
       const { id, projectId, ...patch } = input;
@@ -54,7 +54,7 @@ export const datesRouter = router({
 
   // Hard delete. Fails with a DB FK error if modules/blocking rows still
   // reference the date — same reasoning as modules.remove above.
-  remove: publicProcedure
+  remove: staffProcedure
     .input(projectScoped.extend({ id: z.uuid() }))
     .mutation(async ({ input }) => {
       const [date] = await db

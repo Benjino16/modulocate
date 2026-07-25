@@ -17,7 +17,7 @@ import {
   resolveModuleDisplayScheduleLabels,
   type DbExecutor,
 } from "@modulocate/db";
-import { router, publicProcedure } from "../trpc";
+import { router, staffProcedure } from "../trpc";
 import { projectScoped } from "./shared";
 import { sanitizeModuleDescription } from "../lib/sanitize";
 
@@ -116,9 +116,9 @@ function median(values: number[]): number | null {
 }
 
 export const modulesRouter = router({
-  list: publicProcedure.input(projectScoped).query(({ input }) => loadModules(db, input.projectId)),
+  list: staffProcedure.input(projectScoped).query(({ input }) => loadModules(db, input.projectId)),
 
-  get: publicProcedure
+  get: staffProcedure
     .input(projectScoped.extend({ id: z.uuid() }))
     .query(async ({ input }) => {
       const [module] = await loadModules(db, input.projectId, [input.id]);
@@ -126,7 +126,7 @@ export const modulesRouter = router({
       return module;
     }),
 
-  create: publicProcedure
+  create: staffProcedure
     .input(moduleCreateInput.and(projectScoped))
     .mutation(async ({ input }) => {
       return db.transaction(async (tx) => {
@@ -166,7 +166,7 @@ export const modulesRouter = router({
 
   // Replaces the whole category/date set when `categoryIds`/`dateIds` is
   // provided, same full-replace convention as rules.subRules/blockedCategoryIds.
-  update: publicProcedure
+  update: staffProcedure
     .input(moduleUpdateInput.and(projectScoped))
     .mutation(async ({ input }) => {
       return db.transaction(async (tx) => {
@@ -213,7 +213,7 @@ export const modulesRouter = router({
   // assignment) and their class/rule-override, for the roster dialog.
   // Sorted in JS, not SQL — preference is nullable and the roster is always
   // small, so a NULLS-LAST order-by isn't worth the query complexity.
-  roster: publicProcedure
+  roster: staffProcedure
     .input(projectScoped.extend({ moduleId: z.uuid() }))
     .query(async ({ input }) => {
       const rows = await db
@@ -248,7 +248,7 @@ export const modulesRouter = router({
   // to push a module past its max (see planning.md), same as the allocator
   // itself never hard-blocks on it. onConflictDoNothing guards the rare
   // double-submit race against student_in_module's composite primary key.
-  addStudent: publicProcedure
+  addStudent: staffProcedure
     .input(projectScoped.extend({ moduleId: z.uuid(), studentId: z.uuid() }))
     .mutation(async ({ input }) => {
       await db
@@ -260,7 +260,7 @@ export const modulesRouter = router({
 
   // Removes one student from the module (e.g. a manual correction in the
   // Anpassungen roster view) without touching their preferences.
-  removeStudent: publicProcedure
+  removeStudent: staffProcedure
     .input(projectScoped.extend({ moduleId: z.uuid(), studentId: z.uuid() }))
     .mutation(async ({ input }) => {
       await db
@@ -278,7 +278,7 @@ export const modulesRouter = router({
   // Hard delete. Fails with a DB FK error if preferences/eligibility/blocking
   // rows still reference the module — deliberately left as the DB default
   // (no onDelete) rather than guessing a cascade policy; see planning.md.
-  remove: publicProcedure
+  remove: staffProcedure
     .input(projectScoped.extend({ id: z.uuid() }))
     .mutation(async ({ input }) => {
       const [module] = await db

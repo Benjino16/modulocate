@@ -3,11 +3,11 @@ import { TRPCError } from "@trpc/server";
 import { and, count, eq } from "drizzle-orm";
 import { studentGroupCreateInput, studentGroupUpdateInput } from "@modulocate/shared";
 import { db, studentGroups, studentInGroup } from "@modulocate/db";
-import { router, publicProcedure } from "../trpc";
+import { router, staffProcedure } from "../trpc";
 import { projectScoped } from "./shared";
 
 export const studentGroupsRouter = router({
-  list: publicProcedure.input(projectScoped).query(({ input }) =>
+  list: staffProcedure.input(projectScoped).query(({ input }) =>
     db
       .select({
         id: studentGroups.id,
@@ -22,7 +22,7 @@ export const studentGroupsRouter = router({
       .groupBy(studentGroups.id),
   ),
 
-  get: publicProcedure
+  get: staffProcedure
     .input(projectScoped.extend({ id: z.uuid() }))
     .query(async ({ input }) => {
       const [group] = await db
@@ -33,14 +33,14 @@ export const studentGroupsRouter = router({
       return group;
     }),
 
-  create: publicProcedure
+  create: staffProcedure
     .input(studentGroupCreateInput.and(projectScoped))
     .mutation(async ({ input }) => {
       const [group] = await db.insert(studentGroups).values(input).returning();
       return group;
     }),
 
-  update: publicProcedure
+  update: staffProcedure
     .input(studentGroupUpdateInput.and(projectScoped))
     .mutation(async ({ input }) => {
       const { id, projectId, ...patch } = input;
@@ -57,7 +57,7 @@ export const studentGroupsRouter = router({
   // error if students/blocking rows still reference the group — deliberately
   // left as the DB default (no onDelete) rather than guessing a cascade
   // policy before group-membership/blocking CRUD exists.
-  remove: publicProcedure
+  remove: staffProcedure
     .input(projectScoped.extend({ id: z.uuid() }))
     .mutation(async ({ input }) => {
       const [group] = await db

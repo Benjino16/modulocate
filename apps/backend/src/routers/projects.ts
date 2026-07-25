@@ -3,17 +3,17 @@ import { TRPCError } from "@trpc/server";
 import { and, eq, isNull } from "drizzle-orm";
 import { projectCreateInput, projectPhase } from "@modulocate/shared";
 import { db, projects, students } from "@modulocate/db";
-import { router, publicProcedure } from "../trpc";
+import { router, staffProcedure } from "../trpc";
 import { projectScoped } from "./shared";
 import { enqueueVotingInvites, enqueueVotingResults } from "./students";
 
 // Stopgap until auth/sessions exist: lists every project so the portal's
 // project switcher has something to select from (see projectScoped in ./shared).
 export const projectsRouter = router({
-  list: publicProcedure.query(() => db.select().from(projects)),
+  list: staffProcedure.query(() => db.select().from(projects)),
 
   // Phase defaults to "setup" at the DB level (see packages/db/src/schema.ts).
-  create: publicProcedure.input(projectCreateInput).mutation(async ({ input }) => {
+  create: staffProcedure.input(projectCreateInput).mutation(async ({ input }) => {
     const [project] = await db.insert(projects).values(input).returning();
     return project;
   }),
@@ -24,7 +24,7 @@ export const projectsRouter = router({
   // every student in the project — a retry after a partial failure is safe:
   // already-coded students keep their code, already-queued invites just get
   // re-sent.
-  startElection: publicProcedure.input(projectScoped).mutation(async ({ input }) => {
+  startElection: staffProcedure.input(projectScoped).mutation(async ({ input }) => {
     const { project, studentIds } = await db.transaction(async (tx) => {
       const [project] = await tx.select().from(projects).where(eq(projects.id, input.projectId));
       if (!project) throw new TRPCError({ code: "NOT_FOUND" });
@@ -63,7 +63,7 @@ export const projectsRouter = router({
   // voting -> allocating. No more email/side effects than the phase flip
   // itself — the allocation run is a separate, user-triggered step on the
   // "Zuteilung" page, not something this mutation kicks off.
-  stopElection: publicProcedure.input(projectScoped).mutation(async ({ input }) => {
+  stopElection: staffProcedure.input(projectScoped).mutation(async ({ input }) => {
     const [project] = await db.transaction(async (tx) => {
       const [project] = await tx.select().from(projects).where(eq(projects.id, input.projectId));
       if (!project) throw new TRPCError({ code: "NOT_FOUND" });
@@ -88,7 +88,7 @@ export const projectsRouter = router({
   // allocation in and dispatches the final module assignment to every
   // student — same retry-safe shape as startElection: a retry after a
   // partial failure just re-sends already-queued results.
-  publishResults: publicProcedure.input(projectScoped).mutation(async ({ input }) => {
+  publishResults: staffProcedure.input(projectScoped).mutation(async ({ input }) => {
     const { project, studentIds } = await db.transaction(async (tx) => {
       const [project] = await tx.select().from(projects).where(eq(projects.id, input.projectId));
       if (!project) throw new TRPCError({ code: "NOT_FOUND" });
