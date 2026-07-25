@@ -1,14 +1,25 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, eq } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 import { studentGroupCreateInput, studentGroupUpdateInput } from "@modulocate/shared";
-import { db, studentGroups } from "@modulocate/db";
+import { db, studentGroups, studentInGroup } from "@modulocate/db";
 import { router, publicProcedure } from "../trpc";
 import { projectScoped } from "./shared";
 
 export const studentGroupsRouter = router({
   list: publicProcedure.input(projectScoped).query(({ input }) =>
-    db.select().from(studentGroups).where(eq(studentGroups.projectId, input.projectId)),
+    db
+      .select({
+        id: studentGroups.id,
+        projectId: studentGroups.projectId,
+        name: studentGroups.name,
+        ruleId: studentGroups.ruleId,
+        studentCount: count(studentInGroup.studentId),
+      })
+      .from(studentGroups)
+      .leftJoin(studentInGroup, eq(studentInGroup.groupId, studentGroups.id))
+      .where(eq(studentGroups.projectId, input.projectId))
+      .groupBy(studentGroups.id),
   ),
 
   get: publicProcedure

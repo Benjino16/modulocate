@@ -1,14 +1,24 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, eq } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 import { dateCreateInput, dateUpdateInput } from "@modulocate/shared";
-import { db, dates } from "@modulocate/db";
+import { db, dates, moduleInDate } from "@modulocate/db";
 import { router, publicProcedure } from "../trpc";
 import { projectScoped } from "./shared";
 
 export const datesRouter = router({
   list: publicProcedure.input(projectScoped).query(({ input }) =>
-    db.select().from(dates).where(eq(dates.projectId, input.projectId)),
+    db
+      .select({
+        id: dates.id,
+        projectId: dates.projectId,
+        name: dates.name,
+        moduleCount: count(moduleInDate.moduleId),
+      })
+      .from(dates)
+      .leftJoin(moduleInDate, eq(moduleInDate.dateId, dates.id))
+      .where(eq(dates.projectId, input.projectId))
+      .groupBy(dates.id),
   ),
 
   get: publicProcedure

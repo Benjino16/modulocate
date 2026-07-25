@@ -11,7 +11,7 @@ export const Route = createFileRoute("/data/groups")({
   component: GroupsPage,
 });
 
-type Group = { id: string; name: string; ruleId: string | null };
+type Group = { id: string; name: string; ruleId: string | null; studentCount?: number };
 
 function GroupsPage() {
   const trpc = useTRPC();
@@ -55,9 +55,12 @@ function GroupsPage() {
               key={group.id}
               type="button"
               onClick={() => openEdit(group)}
-              className="rounded-lg border p-4 text-left font-semibold transition-colors hover:bg-accent"
+              className="flex flex-col gap-1 rounded-lg border p-4 text-left transition-colors hover:bg-accent"
             >
-              {group.name}
+              <span className="font-semibold">{group.name}</span>
+              <span className="text-sm font-normal text-muted-foreground">
+                {group.studentCount ?? 0} Schüler
+              </span>
             </button>
           ))}
         </div>

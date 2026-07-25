@@ -11,7 +11,7 @@ export const Route = createFileRoute("/data/dates")({
   component: DatesPage,
 });
 
-type EventDate = { id: string; name: string };
+type EventDate = { id: string; name: string; moduleCount?: number };
 
 function DatesPage() {
   const trpc = useTRPC();
@@ -55,9 +55,12 @@ function DatesPage() {
               key={date.id}
               type="button"
               onClick={() => openEdit(date)}
-              className="rounded-lg border p-4 text-left font-semibold transition-colors hover:bg-accent"
+              className="flex flex-col gap-1 rounded-lg border p-4 text-left transition-colors hover:bg-accent"
             >
-              {date.name}
+              <span className="font-semibold">{date.name}</span>
+              <span className="text-sm font-normal text-muted-foreground">
+                {date.moduleCount ?? 0} Module
+              </span>
             </button>
           ))}
         </div>
