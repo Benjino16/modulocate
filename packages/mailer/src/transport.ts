@@ -2,8 +2,8 @@ import nodemailer from "nodemailer";
 
 let transporter: nodemailer.Transporter | undefined;
 
-// Read lazily (not at import time) so both backend and worker can import this
-// module before their own dotenv/config has run.
+// Read lazily (not at import time) in case this module gets imported before
+// the environment (Docker's env_file, or a caller's own env setup) is ready.
 export function getTransport(): nodemailer.Transporter {
   if (!transporter) {
     transporter = nodemailer.createTransport({

@@ -22,7 +22,6 @@
 // recreates all three projects (truncate + reseed), so it's always safe to
 // run again after a schema change or when demo data has drifted.
 
-import "dotenv/config";
 import { fakerDE as faker } from "@faker-js/faker";
 import { eq, sql } from "drizzle-orm";
 import { allocate } from "@modulocate/allocation-engine";

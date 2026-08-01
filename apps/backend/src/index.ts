@@ -1,4 +1,3 @@
-import "dotenv/config";
 import Fastify from "fastify";
 import cookie from "@fastify/cookie";
 import { fastifyTRPCPlugin } from "@trpc/server/adapters/fastify";
@@ -6,6 +5,7 @@ import { appRouter } from "./router";
 import { createContext } from "./context";
 import { auth } from "./auth";
 import { bootstrapAdmin } from "./bootstrapAdmin";
+import { registerExportRoutes } from "./routes/exports";
 
 const server = Fastify({ logger: true });
 
@@ -42,6 +42,8 @@ server.route({
     reply.send(response.body ? await response.text() : null);
   },
 });
+
+registerExportRoutes(server);
 
 server.register(fastifyTRPCPlugin, {
   prefix: "/api/trpc",

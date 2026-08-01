@@ -12,7 +12,6 @@
     "@modulocate/mailer": "workspace:*",
     "@modulocate/queue": "workspace:*",
     "bullmq": "^5.80.5",
-    "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {

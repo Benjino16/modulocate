@@ -1,4 +1,3 @@
-import "dotenv/config";
 import { Worker, type Job } from "bullmq";
 import {
   ALLOCATION_QUEUE_NAME,
