@@ -148,6 +148,23 @@ The phase/state-machine described throughout this section (`setup → open → c
 - **Type:** plain `text`, validated by a Zod enum in `packages/shared` (`setup | open | closed | allocating | reviewing | finalized | published`) — consistent with how every other constrained field in this codebase is validated (Zod, not a Postgres enum type), and avoids a migration every time a phase name or transition rule changes.
 - **UI-to-state mapping** (worth keeping explicit, since the two vocabularies don't line up 1:1): Daten = `setup`, Umfrage = `open`/`closed`, Zuteilung = `allocating`, Anpassungen = `reviewing`, Ergebnisse = `finalized`/`published`.
 
+### Locked Decision: PDF Export (Anwesenheits-/Teilnehmerlisten) — Synchronous Backend Generation, No MinIO, No Queue Job
+
+Phase 5's "teachers can export participant lists per module" requirement (Section 2 intro) is implemented as two on-demand PDF downloads from the Ergebnisse page (`apps/portal/src/routes/results.tsx`), both combining every selected module into **one multi-page PDF** rather than one file per module:
+
+- **Anwesenheitsliste** (attendance list): Name/Klasse + 10 blank columns (rotated headers, kept narrow — an arbitrary count of session slots a teacher checks off by hand, unrelated to the `dates` entity) + 3 blank trailing rows for latecomers/manual swaps. Sorted alphabetically by name.
+- **Teilnehmerliste** (participant list): Präferenz/Name/Klasse, sorted by preference ascending (unranked/manual assignments last, shown as "–") — same convention as `modulesRouter.roster`'s `?? Infinity` sort. Includes the module's current/max count.
+
+Three infrastructure choices, each rejected in favor of the simpler option since nothing here needs the heavier machinery:
+
+- **`@react-pdf/renderer` over a headless-browser approach (Puppeteer/Playwright):** JSX-based, runs natively in Node with no Chromium dependency, and its layout model fits simple tabular documents well — see the new `packages/pdf-export` package (mirrors the `packages/mailer`/`packages/allocation-engine` convention: plain `src/index.tsx` entrypoint, pure functions, no DB access).
+- **Synchronous generation in the backend, no worker/queue job:** at school-election scale (dozens of modules), rendering is fast enough to happen directly in the request/response cycle. New plain Fastify routes (`apps/backend/src/routes/exports.ts`, `GET /api/projects/:projectId/exports/{attendance,participant}-lists.pdf`) — not tRPC procedures, since the response body is a binary PDF rather than a JSON-serializable value; they duplicate the one-line `auth.api.getSession` check `context.ts` already does for tRPC instead of reusing `staffProcedure`. Both accept an optional `?moduleIds=a,b,c` filter (unused by the portal UI for now, which only offers "export all") so a per-module export is a cheap follow-up later without a backend change.
+- **No MinIO/object storage:** nothing is persisted — each request regenerates and streams the PDF directly, so the object-storage buildout (Section 5, "MinIO comes last") stays deferred until something actually needs to persist a file.
+
+**No PDF attachment on the Phase-5 results email**, either (`packages/mailer/src/templates/votingResults.ts`, unchanged): that email is a handful of module names, and a PDF attachment adds size/spam-filter risk without benefit. PDFs stay an explicit admin/teacher export action, not something pushed to students.
+
+A per-student export (a PDF of one student's assigned modules) was raised as a maybe but deliberately left out of this pass — the same bulk roster query (`loadModuleRosters` in `apps/backend/src/routers/modules.ts`) and `packages/pdf-export` building blocks make it a cheap addition later.
+
 ### Locked Decision: Two Separate Auth Mechanisms — better-auth for Staff, Custom Session Cookie for Students
 
 Admin/teacher accounts and student vote access are deliberately **not** routed through the same auth mechanism, despite both ultimately needing "verify who's making this request" at the tRPC layer:

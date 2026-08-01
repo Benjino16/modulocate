@@ -54,9 +54,23 @@ function ResultsPage() {
       )}
 
       {project?.phase === "published" && (
-        <p className="mt-4 text-muted-foreground">
-          Die Ergebnisse wurden bereits versendet.
-        </p>
+        <>
+          <p className="mt-4 text-muted-foreground">
+            Die Ergebnisse wurden bereits versendet.
+          </p>
+          <div className="mt-4 flex gap-3">
+            <Button asChild variant="outline">
+              <a href={`/api/projects/${projectId}/exports/attendance-lists.pdf`} download>
+                Anwesenheitslisten (PDF)
+              </a>
+            </Button>
+            <Button asChild variant="outline">
+              <a href={`/api/projects/${projectId}/exports/participant-lists.pdf`} download>
+                Teilnehmerlisten (PDF)
+              </a>
+            </Button>
+          </div>
+        </>
       )}
 
       {project && project.phase !== "reviewing" && project.phase !== "published" && (

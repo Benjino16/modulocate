@@ -24,7 +24,9 @@ import { sanitizeModuleDescription } from "../lib/sanitize";
 // Batch-loads modules with their categoryIds (module_in_category) for a
 // project (or a specific subset of module ids). Takes an explicit executor so
 // callers inside a transaction can pass `tx` and see their own uncommitted writes.
-async function loadModules(executor: DbExecutor, projectId: string, ids?: string[]) {
+// Exported for the PDF export routes (routes/exports.ts), which reuse it for
+// module headers (title/teacher/displayScheduleLabel/studentCount/max).
+export async function loadModules(executor: DbExecutor, projectId: string, ids?: string[]) {
   const moduleRows = await executor
     .select()
     .from(modules)
@@ -106,6 +108,50 @@ async function loadModules(executor: DbExecutor, projectId: string, ids?: string
     studentCount: studentCountByModule.get(module.id) ?? 0,
     medianPreference: median(assignedPreferencesByModule.get(module.id) ?? []),
   }));
+}
+
+// Batched sibling of the `roster` procedure below, for the PDF export routes:
+// same join shape (studentInModule -> students -> left join group/rule ->
+// left join preference), but resolved for many modules in one round trip
+// instead of once per module, then grouped by moduleId in JS. Avoids N+1
+// queries when exporting a whole project's worth of modules at once.
+export async function loadModuleRosters(executor: DbExecutor, projectId: string, moduleIds: string[]) {
+  const rowsByModule = new Map<string, Awaited<ReturnType<typeof selectRosterRows>>>();
+  if (moduleIds.length === 0) return rowsByModule;
+
+  const rows = await selectRosterRows(executor, projectId, moduleIds);
+  for (const row of rows) {
+    const list = rowsByModule.get(row.moduleId) ?? [];
+    list.push(row);
+    rowsByModule.set(row.moduleId, list);
+  }
+  for (const list of rowsByModule.values()) {
+    list.sort((a, b) => (a.preference ?? Infinity) - (b.preference ?? Infinity));
+  }
+  return rowsByModule;
+}
+
+function selectRosterRows(executor: DbExecutor, projectId: string, moduleIds: string[]) {
+  return executor
+    .select({
+      moduleId: studentInModule.moduleId,
+      studentId: students.id,
+      name: students.name,
+      groupName: studentGroups.name,
+      preference: studentPreferences.preference,
+    })
+    .from(studentInModule)
+    .innerJoin(students, eq(students.id, studentInModule.studentId))
+    .leftJoin(studentInGroup, eq(studentInGroup.studentId, students.id))
+    .leftJoin(studentGroups, eq(studentGroups.id, studentInGroup.groupId))
+    .leftJoin(
+      studentPreferences,
+      and(
+        eq(studentPreferences.studentId, students.id),
+        eq(studentPreferences.moduleId, studentInModule.moduleId),
+      ),
+    )
+    .where(and(inArray(studentInModule.moduleId, moduleIds), eq(studentInModule.projectId, projectId)));
 }
 
 function median(values: number[]): number | null {

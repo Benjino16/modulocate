@@ -32,6 +32,9 @@ services:
         - path: ../packages/mailer/src
           action: sync
           target: /app/packages/mailer/src
+        - path: ../packages/pdf-export/src
+          action: sync
+          target: /app/packages/pdf-export/src
         - path: ../packages/queue/src
           action: sync
           target: /app/packages/queue/src
