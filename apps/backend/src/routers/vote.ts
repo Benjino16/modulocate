@@ -5,6 +5,8 @@ import { projectPhase } from "@modulocate/shared";
 import {
   db,
   modules,
+  moduleCategories,
+  moduleInCategory,
   projects,
   students,
   studentPreferences,
@@ -30,9 +32,31 @@ export const voteRouter = router({
       .where(and(eq(modules.projectId, ctx.student.projectId), inArray(modules.id, eligibleModuleIds)));
 
     const displayScheduleLabelByModule = await resolveModuleDisplayScheduleLabels(db, eligibleModuleIds);
+
+    // Only categories not flagged hiddenInVote should ever surface to
+    // students — join + filter here rather than in the frontend so a hidden
+    // category's name never even reaches the vote app's network response.
+    const categoryRows = await db
+      .select({ moduleId: moduleInCategory.moduleId, name: moduleCategories.name })
+      .from(moduleInCategory)
+      .innerJoin(moduleCategories, eq(moduleInCategory.categoryId, moduleCategories.id))
+      .where(
+        and(
+          inArray(moduleInCategory.moduleId, eligibleModuleIds),
+          eq(moduleCategories.hiddenInVote, false),
+        ),
+      );
+    const categoryNamesByModule = new Map<string, string[]>();
+    for (const row of categoryRows) {
+      const list = categoryNamesByModule.get(row.moduleId) ?? [];
+      list.push(row.name);
+      categoryNamesByModule.set(row.moduleId, list);
+    }
+
     return moduleRows.map((module) => ({
       ...module,
       displayScheduleLabel: module.scheduleLabel || displayScheduleLabelByModule.get(module.id) || null,
+      categoryNames: categoryNamesByModule.get(module.id) ?? [],
     }));
   }),
 

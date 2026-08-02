@@ -2,6 +2,7 @@ import { z } from "zod";
 
 const moduleCategoryFields = z.object({
   name: z.string().min(1),
+  hiddenInVote: z.boolean().default(false),
 });
 
 export const moduleCategoryCreateInput = moduleCategoryFields;

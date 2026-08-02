@@ -8,7 +8,13 @@ export function SortableModuleRow({
   rank,
   onOpenInfo,
 }: {
-  module: { id: string; name: string; teacher: string | null; displayScheduleLabel: string | null };
+  module: {
+    id: string;
+    name: string;
+    teacher: string | null;
+    displayScheduleLabel: string | null;
+    categoryNames: string[];
+  };
   rank: number;
   onOpenInfo: () => void;
 }) {
@@ -20,6 +26,10 @@ export function SortableModuleRow({
     transform: CSS.Transform.toString(transform),
     transition,
   };
+
+  const meta = [module.displayScheduleLabel, module.categoryNames.join(", ") || null, module.teacher]
+    .filter(Boolean)
+    .join(" • ");
 
   return (
     <li
@@ -40,13 +50,7 @@ export function SortableModuleRow({
         aria-label={`Details zu ${module.name} anzeigen`}
       >
         <p className="truncate font-medium">{module.name}</p>
-        {(module.displayScheduleLabel || module.teacher) && (
-          <p className="truncate text-sm text-muted-foreground">
-            {module.displayScheduleLabel}
-            {module.displayScheduleLabel && module.teacher && " · "}
-            {module.teacher}
-          </p>
-        )}
+        {meta && <p className="truncate text-sm text-muted-foreground">{meta}</p>}
       </button>
       <button
         type="button"

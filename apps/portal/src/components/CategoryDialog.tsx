@@ -8,11 +8,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@modulocate/ui/components/dialog";
+import { Checkbox } from "@modulocate/ui/components/checkbox";
 import { Input } from "@modulocate/ui/components/input";
 import { Label } from "@modulocate/ui/components/label";
 import { useTRPC } from "../trpc";
 
-type Category = { id: string; name: string };
+type Category = { id: string; name: string; hiddenInVote: boolean };
 
 export function CategoryDialog({
   projectId,
@@ -28,11 +29,13 @@ export function CategoryDialog({
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const [name, setName] = useState(category?.name ?? "");
+  const [hiddenInVote, setHiddenInVote] = useState(category?.hiddenInVote ?? false);
   const [error, setError] = useState<string | undefined>();
 
   useEffect(() => {
     if (open) {
       setName(category?.name ?? "");
+      setHiddenInVote(category?.hiddenInVote ?? false);
       setError(undefined);
     }
   }, [open, category]);
@@ -79,9 +82,9 @@ export function CategoryDialog({
     if (!name.trim()) return setError("Name wird benötigt.");
 
     if (category) {
-      updateCategory.mutate({ id: category.id, projectId, name: name.trim() });
+      updateCategory.mutate({ id: category.id, projectId, name: name.trim(), hiddenInVote });
     } else {
-      createCategory.mutate({ projectId, name: name.trim() });
+      createCategory.mutate({ projectId, name: name.trim(), hiddenInVote });
     }
   }
 
@@ -102,6 +105,17 @@ export function CategoryDialog({
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="category-name">Name</Label>
             <Input id="category-name" value={name} onChange={(e) => setName(e.target.value)} required />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="category-hidden-in-vote"
+              checked={hiddenInVote}
+              onCheckedChange={(checked) => setHiddenInVote(checked === true)}
+            />
+            <Label htmlFor="category-hidden-in-vote" className="cursor-pointer font-normal">
+              In der Umfrage ausblenden
+            </Label>
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}

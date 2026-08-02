@@ -11,7 +11,7 @@ export const Route = createFileRoute("/data/categories")({
   component: CategoriesPage,
 });
 
-type Category = { id: string; name: string };
+type Category = { id: string; name: string; hiddenInVote: boolean };
 
 function CategoriesPage() {
   const trpc = useTRPC();
@@ -76,6 +76,9 @@ function CategoriesPage() {
                 <p className="font-semibold">{category.name}</p>
                 <p className="text-sm text-muted-foreground">{stats.moduleCount} Module</p>
                 <p className="text-sm text-muted-foreground">{stats.seatCount} Plätze</p>
+                {category.hiddenInVote && (
+                  <p className="text-sm text-muted-foreground">In der Umfrage ausgeblendet</p>
+                )}
               </button>
             );
           })}

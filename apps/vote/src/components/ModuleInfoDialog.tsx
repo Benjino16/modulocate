@@ -12,6 +12,7 @@ type ModuleInfo = {
   name: string;
   teacher: string | null;
   displayScheduleLabel: string | null;
+  categoryNames: string[];
   description: string | null;
 };
 
@@ -54,7 +55,9 @@ export function ModuleInfoDialog({
     setProgress(p);
   }
 
-  const meta = [module?.displayScheduleLabel, module?.teacher].filter(Boolean).join(" · ");
+  const meta = [module?.displayScheduleLabel, module?.categoryNames.join(", ") || null, module?.teacher]
+    .filter(Boolean)
+    .join(" • ");
 
   return (
     <Dialog open={module !== null} onOpenChange={onOpenChange}>

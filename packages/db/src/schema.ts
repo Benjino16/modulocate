@@ -172,6 +172,10 @@ export const moduleCategories = pgTable("module_categories", {
   id: uuid("id").primaryKey().defaultRandom(),
   projectId: uuid("project_id").notNull().references(() => projects.id),
   name: text("name").notNull(),
+  // Opt-out flag (default false = visible) so existing/newly created
+  // categories show up in the student vote app without any action needed —
+  // an admin explicitly hides the few that shouldn't appear there.
+  hiddenInVote: boolean("hidden_in_vote").notNull().default(false),
 });
 
 export const moduleInCategory = pgTable(
