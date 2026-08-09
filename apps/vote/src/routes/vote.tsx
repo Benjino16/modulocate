@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -21,6 +21,7 @@ import { Button } from "@modulocate/ui/components/button";
 import { cn } from "@modulocate/ui/lib/utils";
 import { ModuleInfoDialog } from "../components/ModuleInfoDialog";
 import { SortableModuleRow } from "../components/SortableModuleRow";
+import { simulateOwnAllocation } from "../lib/simulateAllocation";
 import { trpcClient, useTRPC } from "../trpc";
 
 // Protected: redirects to the fallback login page if there's no valid
@@ -61,7 +62,9 @@ function VotePage() {
   const queryClient = useQueryClient();
 
   const { data: student } = useQuery(trpc.voteAuth.me.queryOptions());
-  const { data: modules = [], isLoading: modulesLoading } = useQuery(trpc.vote.eligibleModules.queryOptions());
+  const { data: eligibleData, isLoading: modulesLoading } = useQuery(trpc.vote.eligibleModules.queryOptions());
+  const modules = eligibleData?.modules ?? [];
+  const rule = eligibleData?.rule ?? null;
   const { data: preferences = [], isLoading: preferencesLoading } = useQuery(
     trpc.vote.myPreferences.queryOptions(),
   );
@@ -86,6 +89,21 @@ function VotePage() {
     const unranked = modules.filter((m) => !rankedIds.includes(m.id));
     setOrder([...ranked, ...unranked]);
   }, [modules, preferences, modulesLoading, preferencesLoading, order]);
+
+  // "What would I get, assuming no competition from other students" —
+  // recomputed locally on every reorder, no network round-trip (see
+  // simulateAllocation.ts). Skipped entirely if the student has no effective
+  // rule (misconfiguration case handled server-side by eligibleModules).
+  const predictedModuleIds = useMemo(() => {
+    if (!student || !rule || order === null) return new Set<string>();
+    const result = simulateOwnAllocation(
+      student.studentId,
+      order.map((m) => m.id),
+      modules,
+      rule,
+    );
+    return new Set(result.assignments.map((a) => a.moduleId));
+  }, [student, rule, modules, order]);
 
   const submit = useMutation(
     trpc.vote.submitPreferences.mutationOptions({
@@ -150,6 +168,12 @@ function VotePage() {
           <p className="mt-1 text-sm text-muted-foreground">
             Bring die Module in deine Wunschreihenfolge — dein Favorit steht oben.
           </p>
+          {predictedModuleIds.size > 0 && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Hervorgehobene Module würdest du mit dieser Reihenfolge bekommen — angenommen, es gäbe keine
+              Konkurrenz durch andere Schüler:innen.
+            </p>
+          )}
         </div>
         <Button variant="ghost" size="sm" onClick={() => logout.mutate()}>
           <LogOut /> Abmelden
@@ -167,6 +191,7 @@ function VotePage() {
                   key={module.id}
                   module={module}
                   rank={index + 1}
+                  isPredicted={predictedModuleIds.has(module.id)}
                   onOpenInfo={() => setInfoModule(module)}
                 />
               ))}

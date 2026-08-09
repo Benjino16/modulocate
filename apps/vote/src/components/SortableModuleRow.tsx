@@ -6,6 +6,7 @@ import { cn } from "@modulocate/ui/lib/utils";
 export function SortableModuleRow({
   module,
   rank,
+  isPredicted,
   onOpenInfo,
 }: {
   module: {
@@ -16,6 +17,10 @@ export function SortableModuleRow({
     categoryNames: string[];
   };
   rank: number;
+  // Predicted result of the local, competition-free allocation-engine
+  // preview (see simulateAllocation.ts) — purely informational highlighting,
+  // not a guarantee.
+  isPredicted: boolean;
   onOpenInfo: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -38,9 +43,15 @@ export function SortableModuleRow({
       className={cn(
         "flex items-center gap-3 rounded-md border bg-card p-3",
         isDragging && "relative z-10 shadow-lg",
+        isPredicted && "border-primary/50 bg-primary/5",
       )}
     >
-      <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium">
+      <span
+        className={cn(
+          "flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium",
+          isPredicted && "bg-primary text-primary-foreground",
+        )}
+      >
         {rank}
       </span>
       <button

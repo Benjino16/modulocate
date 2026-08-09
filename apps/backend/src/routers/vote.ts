@@ -12,6 +12,8 @@ import {
   studentPreferences,
   resolveStudentEligibility,
   resolveModuleDisplayScheduleLabels,
+  resolveAllocationRuleById,
+  resolveModuleAllocationFields,
 } from "@modulocate/db";
 import { router, protectedStudentProcedure } from "../trpc";
 
@@ -19,13 +21,20 @@ export const voteRouter = router({
   // Modules the logged-in student is currently allowed to see — resolved
   // live per request, not from a snapshot (see planning.md "Deferred
   // Decision: Live Resolution for the Vote App").
+  // Also returns the raw data the vote app needs to run a client-side,
+  // single-student allocation-engine preview ("what would I get, assuming no
+  // competition") on every reorder without a network round-trip — see
+  // apps/vote/src/lib/simulateAllocation.ts. `rule` is the one rule
+  // effective for this student (never every project rule); module rows carry
+  // both the existing display-only fields and raw categoryIds/dateIds for
+  // the engine.
   eligibleModules: protectedStudentProcedure.query(async ({ ctx }) => {
     const [eligibility] = await resolveStudentEligibility(db, {
       projectId: ctx.student.projectId,
       studentIds: [ctx.student.studentId],
     });
     const eligibleModuleIds = eligibility?.eligibleModuleIds ?? [];
-    if (eligibleModuleIds.length === 0) return [];
+    if (eligibleModuleIds.length === 0) return { modules: [], rule: null };
     const moduleRows = await db
       .select()
       .from(modules)
@@ -34,8 +43,10 @@ export const voteRouter = router({
     const displayScheduleLabelByModule = await resolveModuleDisplayScheduleLabels(db, eligibleModuleIds);
 
     // Only categories not flagged hiddenInVote should ever surface to
-    // students — join + filter here rather than in the frontend so a hidden
-    // category's name never even reaches the vote app's network response.
+    // students by name — join + filter here rather than in the frontend so a
+    // hidden category's name never even reaches the vote app's network
+    // response. Its id still reaches the client via categoryIdsByModule
+    // below, since the engine needs it for sub-rule matching regardless.
     const categoryRows = await db
       .select({ moduleId: moduleInCategory.moduleId, name: moduleCategories.name })
       .from(moduleInCategory)
@@ -53,11 +64,21 @@ export const voteRouter = router({
       categoryNamesByModule.set(row.moduleId, list);
     }
 
-    return moduleRows.map((module) => ({
-      ...module,
-      displayScheduleLabel: module.scheduleLabel || displayScheduleLabelByModule.get(module.id) || null,
-      categoryNames: categoryNamesByModule.get(module.id) ?? [],
-    }));
+    const [rule, { categoryIdsByModule, dateIdsByModule }] = await Promise.all([
+      eligibility?.ruleId ? resolveAllocationRuleById(db, eligibility.ruleId) : Promise.resolve(null),
+      resolveModuleAllocationFields(db, eligibleModuleIds),
+    ]);
+
+    return {
+      modules: moduleRows.map((module) => ({
+        ...module,
+        displayScheduleLabel: module.scheduleLabel || displayScheduleLabelByModule.get(module.id) || null,
+        categoryNames: categoryNamesByModule.get(module.id) ?? [],
+        categoryIds: categoryIdsByModule.get(module.id) ?? [],
+        dateIds: dateIdsByModule.get(module.id) ?? [],
+      })),
+      rule,
+    };
   }),
 
   myPreferences: protectedStudentProcedure.query(({ ctx }) =>
