@@ -13,6 +13,7 @@ import {
 import { cn } from "@modulocate/ui/lib/utils";
 import { useTRPC } from "../trpc";
 import { useProject } from "../lib/project-context";
+import { StudentPreferencesDialog } from "../components/StudentPreferencesDialog";
 
 export const Route = createFileRoute("/survey/students")({
   component: SurveyStudentsPage,
@@ -28,6 +29,7 @@ type Student = {
   name: string;
   email: string;
   groupName: string | null;
+  ruleName: string | null;
   signInCode: string | null;
   voteOpenedAt: string | null;
   voteSubmittedAt: string | null;
@@ -79,6 +81,14 @@ function SurveyStudentsPage() {
     enabled: !!projectId,
   });
 
+  const [selectedStudent, setSelectedStudent] = useState<Student | undefined>();
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  function openStudent(student: Student) {
+    setSelectedStudent(student);
+    setDialogOpen(true);
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <h2 className="text-lg font-semibold">Schüler</h2>
@@ -101,7 +111,7 @@ function SurveyStudentsPage() {
           </TableHeader>
           <TableBody>
             {students.map((student) => (
-              <TableRow key={student.id}>
+              <TableRow key={student.id} onClick={() => openStudent(student)} className="cursor-pointer">
                 <TableCell className="font-medium">{student.name}</TableCell>
                 <TableCell className="text-muted-foreground">{student.email}</TableCell>
                 <TableCell className="text-muted-foreground">{student.groupName || "–"}</TableCell>
@@ -134,6 +144,15 @@ function SurveyStudentsPage() {
             ))}
           </TableBody>
         </Table>
+      )}
+
+      {projectId && (
+        <StudentPreferencesDialog
+          projectId={projectId}
+          student={selectedStudent}
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+        />
       )}
     </div>
   );

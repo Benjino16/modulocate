@@ -10,6 +10,7 @@ import {
   students,
   resolveRuleCompliance,
   resolveStudentModuleOptions,
+  resolveStudentPreferences,
 } from "@modulocate/db";
 import { EmailJobName, getEmailQueue } from "@modulocate/queue";
 import { router, staffProcedure } from "../trpc";
@@ -60,6 +61,13 @@ export const studentsRouter = router({
   moduleOptions: staffProcedure
     .input(projectScoped.extend({ studentId: z.uuid() }))
     .query(({ input }) => resolveStudentModuleOptions(db, { projectId: input.projectId, studentId: input.studentId })),
+
+  // Raw ranked submission for the Umfrage tab — unlike moduleOptions, not
+  // filtered to currently-eligible modules, since this shows what the
+  // student actually voted for, not what they could still pick today.
+  preferences: staffProcedure
+    .input(projectScoped.extend({ studentId: z.uuid() }))
+    .query(({ input }) => resolveStudentPreferences(db, { projectId: input.projectId, studentId: input.studentId })),
 
   get: staffProcedure
     .input(projectScoped.extend({ id: z.uuid() }))
