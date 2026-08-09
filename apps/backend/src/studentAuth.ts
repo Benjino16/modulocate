@@ -6,7 +6,7 @@ import jwt from "jsonwebtoken";
 // persistent identity, so it gets its own small sign/verify pair instead of
 // being forced into better-auth's user model.
 const SECRET: string =
-  process.env.STUDENT_SESSION_SECRET ??
+  process.env.STUDENT_SESSION_SECRET ||
   (() => {
     throw new Error("STUDENT_SESSION_SECRET is not set");
   })();

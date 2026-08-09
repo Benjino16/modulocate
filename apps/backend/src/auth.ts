@@ -7,7 +7,7 @@ import { db, users, sessions, accounts, verifications } from "@modulocate/db";
 // Separate Auth Mechanisms". Student vote sessions stay on the hand-rolled
 // JWT-cookie flow in studentAuth.ts, deliberately not routed through this.
 const secret: string =
-  process.env.BETTER_AUTH_SECRET ??
+  process.env.BETTER_AUTH_SECRET ||
   (() => {
     throw new Error("BETTER_AUTH_SECRET is not set");
   })();
@@ -19,7 +19,7 @@ const secret: string =
 // environment should fail loudly at startup, not silently fall back to a
 // dev hostname baked into the code.
 const publicBaseURL: string =
-  process.env.BETTER_AUTH_URL ??
+  process.env.BETTER_AUTH_URL ||
   (() => {
     throw new Error("BETTER_AUTH_URL is not set");
   })();

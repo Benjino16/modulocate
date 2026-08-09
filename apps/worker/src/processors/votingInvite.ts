@@ -3,7 +3,7 @@ import type { VotingInviteJob } from "@modulocate/queue";
 import { loadStudent } from "./common";
 
 const VOTE_APP_URL: string =
-  process.env.VOTE_APP_URL ??
+  process.env.VOTE_APP_URL ||
   (() => {
     throw new Error("VOTE_APP_URL is not set");
   })();
