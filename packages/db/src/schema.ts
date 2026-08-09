@@ -245,6 +245,10 @@ export const students = pgTable("students", {
   // resubmitting while the election is open is allowed and "last voted at"
   // should reflect the most recent submission.
   voteSubmittedAt: timestamp("vote_submitted_at", { withTimezone: true }),
+  // Set only on the first successful voting-invite send, never overwritten —
+  // unlike voteSubmittedAt, later sends (second email address, manual resend)
+  // shouldn't move this. email_log still holds the full send history.
+  voteCodeSentAt: timestamp("vote_code_sent_at", { withTimezone: true }),
   // overrides the group's rule when set; same "set null, not owned" reasoning
   ruleId: uuid("rule_id").references(() => rules.id, { onDelete: "set null" }),
 });

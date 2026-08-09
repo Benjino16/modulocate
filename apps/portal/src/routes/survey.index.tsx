@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@modulocate/ui/components/button";
 import { useTRPC } from "../trpc";
 import { useProject } from "../lib/project-context";
+import { SurveyStatusBar } from "../components/SurveyStatusBar";
 
 export const Route = createFileRoute("/survey/")({
   component: SurveyPage,
@@ -15,6 +16,11 @@ function SurveyPage() {
   const { projects, projectId } = useProject();
   const project = projects.find((p) => p.id === projectId);
   const [error, setError] = useState<string | undefined>();
+
+  const { data: students } = useQuery({
+    ...trpc.students.list.queryOptions({ projectId: projectId! }),
+    enabled: !!projectId,
+  });
 
   const invalidateProjects = () =>
     queryClient.invalidateQueries({ queryKey: trpc.projects.list.queryKey() });
@@ -66,6 +72,17 @@ function SurveyPage() {
         Startet die Wahl und verschickt die Vote-Links an alle Schüler. Danach sind die Module
         gesperrt, bis die Umfrage wieder geschlossen wird.
       </p>
+
+      {!!students?.length && (
+        <div className="mt-6">
+          <Link
+            to="/survey/students"
+            className="block rounded-lg p-3 -m-3 transition-colors hover:bg-muted/50"
+          >
+            <SurveyStatusBar students={students} />
+          </Link>
+        </div>
+      )}
 
       {project?.phase === "setup" && (
         <Button className="mt-4" onClick={handleStart} disabled={startElection.isPending}>

@@ -31,6 +31,7 @@ async function loadStudents(executor: DbExecutor, projectId: string, ids?: strin
       email2: students.email2,
       signInCode: students.signInCode,
       voteStatus: students.voteStatus,
+      voteCodeSentAt: students.voteCodeSentAt,
       voteOpenedAt: students.voteOpenedAt,
       voteSubmittedAt: students.voteSubmittedAt,
       ruleId: students.ruleId,

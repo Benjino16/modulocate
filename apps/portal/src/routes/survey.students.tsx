@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Check, Copy, Link2 } from "lucide-react";
@@ -13,6 +13,7 @@ import {
 import { cn } from "@modulocate/ui/lib/utils";
 import { useTRPC } from "../trpc";
 import { useProject } from "../lib/project-context";
+import { resolveVoteStatus, VOTE_STATUS_ROW_COLOR, VOTE_STATUS_SORT_ORDER } from "../lib/voteStatus";
 import { StudentPreferencesDialog } from "../components/StudentPreferencesDialog";
 
 export const Route = createFileRoute("/survey/students")({
@@ -31,6 +32,7 @@ type Student = {
   groupName: string | null;
   ruleName: string | null;
   signInCode: string | null;
+  voteCodeSentAt: string | null;
   voteOpenedAt: string | null;
   voteSubmittedAt: string | null;
 };
@@ -46,9 +48,16 @@ function formatDateTime(value: string) {
 }
 
 function voteStatusLabel(student: Student) {
-  if (student.voteSubmittedAt) return `Abgestimmt am ${formatDateTime(student.voteSubmittedAt)}`;
-  if (student.voteOpenedAt) return `Geöffnet am ${formatDateTime(student.voteOpenedAt)}`;
-  return "Nicht geöffnet";
+  switch (resolveVoteStatus(student)) {
+    case "submitted":
+      return `Abgestimmt am ${formatDateTime(student.voteSubmittedAt!)}`;
+    case "opened":
+      return `Geöffnet am ${formatDateTime(student.voteOpenedAt!)}`;
+    case "sent":
+      return `Mail erhalten am ${formatDateTime(student.voteCodeSentAt!)}`;
+    case "none":
+      return "Nicht erhalten";
+  }
 }
 
 function CopyButton({ value, label, icon: Icon }: { value: string; label: string; icon: typeof Copy }) {
@@ -81,6 +90,15 @@ function SurveyStudentsPage() {
     enabled: !!projectId,
   });
 
+  const sortedStudents = useMemo(() => {
+    if (!students) return students;
+    return [...students].sort(
+      (a, b) =>
+        VOTE_STATUS_SORT_ORDER.indexOf(resolveVoteStatus(a)) -
+        VOTE_STATUS_SORT_ORDER.indexOf(resolveVoteStatus(b)),
+    );
+  }, [students]);
+
   const [selectedStudent, setSelectedStudent] = useState<Student | undefined>();
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -98,7 +116,7 @@ function SurveyStudentsPage() {
         <p className="text-muted-foreground">Noch keine Schüler angelegt.</p>
       )}
 
-      {!!students?.length && (
+      {!!sortedStudents?.length && (
         <Table>
           <TableHeader>
             <TableRow>
@@ -110,8 +128,12 @@ function SurveyStudentsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {students.map((student) => (
-              <TableRow key={student.id} onClick={() => openStudent(student)} className="cursor-pointer">
+            {sortedStudents.map((student) => (
+              <TableRow
+                key={student.id}
+                onClick={() => openStudent(student)}
+                className={cn("cursor-pointer", VOTE_STATUS_ROW_COLOR[resolveVoteStatus(student)])}
+              >
                 <TableCell className="font-medium">{student.name}</TableCell>
                 <TableCell className="text-muted-foreground">{student.email}</TableCell>
                 <TableCell className="text-muted-foreground">{student.groupName || "–"}</TableCell>

@@ -1,4 +1,5 @@
 import { Worker, type Job } from "bullmq";
+import { and, eq, isNull } from "drizzle-orm";
 import {
   ALLOCATION_QUEUE_NAME,
   AllocationJobName,
@@ -6,7 +7,7 @@ import {
   EmailJobName,
   getRedisConnection,
 } from "@modulocate/queue";
-import { db, emailLog } from "@modulocate/db";
+import { db, emailLog, students } from "@modulocate/db";
 import { processVotingInvite } from "./processors/votingInvite";
 import { processVotingResults } from "./processors/votingResults";
 import { processAllocationRun } from "./processors/allocationRun";
@@ -41,6 +42,16 @@ emailWorker.on("completed", async (job) => {
     recipient: result.recipient,
     status: "sent",
   });
+
+  // First-send-only marker, deliberately separate from emailLog above (which
+  // records every send) — a second address or a later manual resend must not
+  // move this timestamp.
+  if (job.name === EmailJobName.VotingInvite) {
+    await db
+      .update(students)
+      .set({ voteCodeSentAt: new Date() })
+      .where(and(eq(students.id, result.studentId), isNull(students.voteCodeSentAt)));
+  }
 });
 
 emailWorker.on("failed", async (job, err) => {
