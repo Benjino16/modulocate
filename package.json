@@ -8,7 +8,10 @@
   },
   "scripts": {
     "dev": "docker compose -f infra/compose.yaml -f infra/compose.dev.yaml up --build --watch",
-    "build": "turbo run build"
+    "build": "turbo run build",
+    "db:push": "docker compose -f infra/compose.yaml -f infra/compose.dev.yaml exec backend pnpm --filter @modulocate/db db:push",
+    "db:seed": "docker compose -f infra/compose.yaml -f infra/compose.dev.yaml exec backend pnpm --filter @modulocate/db db:seed",
+    "db:studio": "docker compose -f infra/compose.yaml -f infra/compose.dev.yaml exec backend pnpm --filter @modulocate/db db:studio"
   },
   "devDependencies": {
     "turbo": "^2.10.5"

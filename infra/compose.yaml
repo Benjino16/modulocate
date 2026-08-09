@@ -27,17 +27,6 @@ services:
       timeout: 5s
       retries: 5
 
-  mailpit:
-    image: axllent/mailpit:latest
-    ports:
-      - "1025:1025" # SMTP
-      - "8025:8025" # Web UI / API
-    volumes:
-      - mailpit_data:/data
-    environment:
-      MP_MAX_MESSAGES: 5000
-      MP_DATABASE: /data/mailpit.db
-
   # Fronts backend/portal/vote under one origin (http://modulocate.localhost)
   # so staff/student session cookies and tRPC calls are all same-origin — no
   # CORS or cross-origin cookie config needed, in dev or prod (prod runs
@@ -71,7 +60,6 @@ services:
     environment:
       DATABASE_URL: postgres://modulocate:modulocate@postgres:5432/modulocate
       REDIS_URL: redis://redis:6379
-      SMTP_HOST: mailpit
       BETTER_AUTH_URL: http://modulocate.localhost
     depends_on:
       postgres:
@@ -88,7 +76,6 @@ services:
     environment:
       DATABASE_URL: postgres://modulocate:modulocate@postgres:5432/modulocate
       REDIS_URL: redis://redis:6379
-      SMTP_HOST: mailpit
       VOTE_APP_URL: http://modulocate.localhost/voting
     depends_on:
       postgres:
@@ -115,4 +102,3 @@ services:
 volumes:
   postgres_data:
   redis_data:
-  mailpit_data:

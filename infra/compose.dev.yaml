@@ -17,7 +17,22 @@
 # Usage: docker compose -f infra/compose.yaml -f infra/compose.dev.yaml watch
 # (or `up --watch` to start + watch in one command)
 services:
+  # Dev-only fake SMTP catcher — real deploys use whatever SMTP_HOST is set
+  # in .env, so this stays out of the base compose.yaml.
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "1025:1025" # SMTP
+      - "8025:8025" # Web UI / API
+    volumes:
+      - mailpit_data:/data
+    environment:
+      MP_MAX_MESSAGES: 5000
+      MP_DATABASE: /data/mailpit.db
+
   backend:
+    environment:
+      SMTP_HOST: mailpit
     develop:
       watch:
         - path: ../apps/backend/src
@@ -43,6 +58,8 @@ services:
           target: /app/packages/shared/src
 
   worker:
+    environment:
+      SMTP_HOST: mailpit
     develop:
       watch:
         - path: ../apps/worker/src
@@ -89,3 +106,6 @@ services:
         - path: ../packages/ui/src
           action: sync
           target: /app/packages/ui/src
+
+volumes:
+  mailpit_data:
