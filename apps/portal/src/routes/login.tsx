@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Button } from "@modulocate/ui/components/button";
 import { Input } from "@modulocate/ui/components/input";
 import { Label } from "@modulocate/ui/components/label";
@@ -66,6 +66,10 @@ function LoginPage() {
         <Button type="submit" disabled={isSubmitting}>
           {isSubmitting ? "Wird angemeldet…" : "Anmelden"}
         </Button>
+
+        <Link to="/forgot-password" className="text-sm text-muted-foreground hover:underline">
+          Passwort vergessen?
+        </Link>
       </form>
     </div>
   );

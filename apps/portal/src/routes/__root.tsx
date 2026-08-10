@@ -10,7 +10,8 @@ export const Route = createRootRoute({
 
 function RootLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  if (pathname === "/login") return <Outlet />;
+  const publicRoutes = ["/login", "/forgot-password", "/reset-password"];
+  if (publicRoutes.includes(pathname)) return <Outlet />;
 
   return (
     <AuthGuard>
@@ -24,7 +25,8 @@ function RootLayout() {
   );
 }
 
-// Gates every route but /login on a better-auth session — see planning.md
+// Gates every route but the public auth ones (login/forgot/reset password)
+// on a better-auth session — see planning.md
 // "Locked Decision: Two Separate Auth Mechanisms". No role/permission check
 // yet, just "is someone signed in" (tracked in planning.md Section 6).
 function AuthGuard({ children }: { children: ReactNode }) {

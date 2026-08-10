@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
+import { EmailJobName, getEmailQueue } from "@modulocate/queue";
 import { db, users, sessions, accounts, verifications } from "@modulocate/db";
 
 // Staff (admin/teacher) auth only — see planning.md "Locked Decision: Two
@@ -47,6 +48,22 @@ export const auth = betterAuth({
   },
   emailAndPassword: {
     enabled: true,
+    // Enqueued instead of sent inline — same email queue/worker every other
+    // transactional mail goes through (see packages/queue/src/email.ts),
+    // for consistent retry behavior and an emailLog entry.
+    sendResetPassword: async ({ user, url }) => {
+      await getEmailQueue().add(EmailJobName.PasswordReset, {
+        userId: user.id,
+        email: user.email,
+        resetLink: url,
+      });
+    },
+    // A password reset is the "I may have lost control of this account"
+    // path — any session started before the reset (e.g. an attacker's)
+    // should not survive it. changePassword's own revokeOtherSessions flag
+    // (set from the portal UI) covers the same intent for the "I still know
+    // my password" path.
+    revokeSessionsOnPasswordReset: true,
   },
   // Keeps id format consistent with every other table in the schema
   // (uuid.defaultRandom()) instead of better-auth's own default id shape.

@@ -10,6 +10,7 @@ import {
 import { db, emailLog, students } from "@modulocate/db";
 import { processVotingInvite } from "./processors/votingInvite";
 import { processVotingResults } from "./processors/votingResults";
+import { processPasswordReset } from "./processors/passwordReset";
 import { processAllocationRun } from "./processors/allocationRun";
 import { loadStudent } from "./processors/common";
 
@@ -21,6 +22,8 @@ const emailWorker = new Worker(
         return processVotingInvite(job.data);
       case EmailJobName.VotingResults:
         return processVotingResults(job.data);
+      case EmailJobName.PasswordReset:
+        return processPasswordReset(job.data);
       default:
         throw new Error(`Unknown job name: ${job.name}`);
     }
@@ -34,6 +37,19 @@ const emailWorker = new Worker(
 );
 
 emailWorker.on("completed", async (job) => {
+  // Password reset targets a staff user (emailLog.userId), not a student —
+  // separate branch since the two never share a shape.
+  if (job.name === EmailJobName.PasswordReset) {
+    const result = job.returnvalue as { recipient: string; userId: string };
+    await db.insert(emailLog).values({
+      userId: result.userId,
+      type: job.name,
+      recipient: result.recipient,
+      status: "sent",
+    });
+    return;
+  }
+
   const result = job.returnvalue as { recipient: string; studentId: string; projectId: string };
   await db.insert(emailLog).values({
     projectId: result.projectId,
@@ -58,6 +74,17 @@ emailWorker.on("failed", async (job, err) => {
   if (!job) return;
   const attempts = job.opts.attempts ?? 1;
   if (job.attemptsMade < attempts) return; // will be retried, don't log yet
+
+  if (job.name === EmailJobName.PasswordReset) {
+    await db.insert(emailLog).values({
+      userId: job.data.userId,
+      type: job.name,
+      recipient: job.data.email,
+      status: "failed",
+      error: err.message,
+    });
+    return;
+  }
 
   try {
     const student = await loadStudent(job.data.studentId);

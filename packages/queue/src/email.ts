@@ -7,6 +7,7 @@ export const EMAIL_QUEUE_NAME = "email";
 export const EmailJobName = {
   VotingInvite: "voting-invite",
   VotingResults: "voting-results",
+  PasswordReset: "password-reset",
 } as const;
 
 export const votingInviteJobSchema = z.object({
@@ -20,6 +21,17 @@ export const votingResultsJobSchema = z.object({
   projectId: z.string().uuid(),
 });
 export type VotingResultsJob = z.infer<typeof votingResultsJobSchema>;
+
+// userId/email/resetLink are carried in the job itself rather than looked up
+// at process time (unlike student jobs, which only carry an id) — the reset
+// link embeds a one-time token minted by better-auth right before enqueueing,
+// there's nothing stable in the DB to re-derive it from later.
+export const passwordResetJobSchema = z.object({
+  userId: z.string(),
+  email: z.email(),
+  resetLink: z.url(),
+});
+export type PasswordResetJob = z.infer<typeof passwordResetJobSchema>;
 
 let emailQueue: Queue | undefined;
 
