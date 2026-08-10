@@ -16,12 +16,14 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { Check, LogOut } from "lucide-react";
+import { Check, HelpCircle, LogOut } from "lucide-react";
 import { Button } from "@modulocate/ui/components/button";
 import { cn } from "@modulocate/ui/lib/utils";
 import { ModuleInfoDialog } from "../components/ModuleInfoDialog";
 import { SortableModuleRow } from "../components/SortableModuleRow";
+import { TutorialOverlay } from "../components/TutorialOverlay";
 import { simulateOwnAllocation } from "../lib/simulateAllocation";
+import { hasSeenTutorial } from "../lib/tutorialStorage";
 import { trpcClient, useTRPC } from "../trpc";
 
 // Protected: redirects to the fallback login page if there's no valid
@@ -76,6 +78,8 @@ function VotePage() {
   // rank is derived from array position, not stored per drag.
   const [order, setOrder] = useState<Module[] | null>(null);
   const [infoModule, setInfoModule] = useState<Module | null>(null);
+  // null = not decided yet (waiting on `student`); true/false once resolved.
+  const [tutorialOpen, setTutorialOpen] = useState<boolean | null>(null);
   // Overrides the localStorage read once a submit succeeds in this session,
   // so the button reflects it immediately without a storage round-trip.
   const [submittedOverride, setSubmittedOverride] = useState<string[] | null>(null);
@@ -89,6 +93,11 @@ function VotePage() {
     const unranked = modules.filter((m) => !rankedIds.includes(m.id));
     setOrder([...ranked, ...unranked]);
   }, [modules, preferences, modulesLoading, preferencesLoading, order]);
+
+  useEffect(() => {
+    if (!student) return;
+    setTutorialOpen((current) => current ?? !hasSeenTutorial(student.studentId));
+  }, [student]);
 
   // "What would I get, assuming no competition from other students" —
   // recomputed locally on every reorder, no network round-trip (see
@@ -175,9 +184,19 @@ function VotePage() {
             </p>
           )}
         </div>
-        <Button variant="ghost" size="sm" onClick={() => logout.mutate()}>
-          <LogOut /> Abmelden
-        </Button>
+        <div className="flex shrink-0 items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Tutorial erneut anzeigen"
+            onClick={() => setTutorialOpen(true)}
+          >
+            <HelpCircle />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => logout.mutate()}>
+            <LogOut /> Abmelden
+          </Button>
+        </div>
       </div>
 
       {order.length === 0 ? (
@@ -231,6 +250,10 @@ function VotePage() {
       </div>
 
       <ModuleInfoDialog module={infoModule} onOpenChange={(open) => !open && setInfoModule(null)} />
+
+      {student && tutorialOpen && (
+        <TutorialOverlay studentId={student.studentId} onDone={() => setTutorialOpen(false)} />
+      )}
     </div>
   );
 }

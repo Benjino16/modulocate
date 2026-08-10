@@ -1,0 +1,149 @@
+/* Row height (h-11 = 44px) + row gap (gap-2 = 8px) of the mock rows below —
+   the swap distance mirrors two rows moving past each other. */
+@keyframes tutorial-swap-down {
+  0%,
+  15% {
+    transform: translateY(0);
+  }
+  45%,
+  70% {
+    transform: translateY(104px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@keyframes tutorial-swap-up {
+  0%,
+  15% {
+    transform: translateY(0);
+  }
+  45%,
+  70% {
+    transform: translateY(-104px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+.tutorial-swap-down {
+  position: relative;
+  z-index: 2;
+  animation: tutorial-swap-down 3.2s ease-in-out infinite;
+}
+
+.tutorial-swap-up {
+  position: relative;
+  z-index: 2;
+  animation: tutorial-swap-up 3.2s ease-in-out infinite;
+}
+
+@keyframes tutorial-highlight-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklch, var(--color-primary) 35%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 5px color-mix(in oklch, var(--color-primary) 0%, transparent);
+  }
+}
+
+.tutorial-highlight-pulse {
+  animation: tutorial-highlight-pulse 2s ease-in-out infinite;
+}
+
+@keyframes tutorial-tap-ripple {
+  0%,
+  20% {
+    transform: translateY(-50%) scale(0.4);
+    opacity: 0.9;
+  }
+  50% {
+    transform: translateY(-50%) scale(2.4);
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.tutorial-tap-ripple {
+  animation: tutorial-tap-ripple 3s ease-out infinite;
+}
+
+@keyframes tutorial-tap-panel {
+  0%,
+  30% {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  50%,
+  85% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.tutorial-tap-panel {
+  animation: tutorial-tap-panel 3s ease-in-out infinite;
+}
+
+@keyframes tutorial-submit-pulse {
+  0%,
+  55% {
+    box-shadow: 0 0 0 0 color-mix(in oklch, var(--color-primary) 45%, transparent);
+  }
+  80% {
+    box-shadow: 0 0 0 8px color-mix(in oklch, var(--color-primary) 0%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklch, var(--color-primary) 0%, transparent);
+  }
+}
+
+.tutorial-submit-pulse {
+  animation: tutorial-submit-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes tutorial-submit-check {
+  0%,
+  60% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  75%,
+  90% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+.tutorial-submit-check {
+  animation: tutorial-submit-check 2.4s ease-in-out infinite;
+}
+
+@keyframes tutorial-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 0.85;
+  }
+}
+
+.tutorial-breathe {
+  animation: tutorial-breathe 2.4s ease-in-out infinite;
+}
