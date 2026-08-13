@@ -122,7 +122,7 @@ function RuleCell({ compliance }: { compliance: Compliance | undefined }) {
   if (!moduleCountSatisfied) {
     return (
       <TableCell
-        className="bg-amber-500/15"
+        className="bg-warning/15 dark:bg-warning/25"
         title={`Zu wenige Module: ${moduleCountAssigned} von ${moduleCountTarget}`}
       >
         {ruleName}
@@ -155,7 +155,7 @@ function ModuleCountCell({ compliance }: { compliance: Compliance | undefined })
 
   if (!moduleCountSatisfied) {
     return (
-      <TableCell className="bg-amber-500/15 font-medium">
+      <TableCell className="bg-warning/15 font-medium dark:bg-warning/25">
         {moduleCountAssigned}/{moduleCountTarget}{" "}
         <span className="font-normal text-muted-foreground">
           ({missing} {missing === 1 ? "Modul" : "Module"} fehlen)

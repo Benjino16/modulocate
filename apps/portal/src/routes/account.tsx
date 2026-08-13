@@ -103,7 +103,7 @@ function ChangePasswordForm() {
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
-      {success && <p className="text-sm text-emerald-600">Passwort wurde geändert.</p>}
+      {success && <p className="text-sm text-success">Passwort wurde geändert.</p>}
 
       <Button type="submit" disabled={isSubmitting} className="self-start">
         {isSubmitting ? "Wird geändert…" : "Passwort ändern"}

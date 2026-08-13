@@ -16,7 +16,7 @@ export function CapacityBar({
     <div className="flex items-center gap-2">
       <div className="h-2 w-32 overflow-hidden rounded-full bg-muted">
         <div
-          className={cn("h-full rounded-full", belowMin ? "bg-amber-500" : "bg-foreground")}
+          className={cn("h-full rounded-full", belowMin ? "bg-warning" : "bg-foreground")}
           style={{ width: `${percent}%` }}
         />
       </div>

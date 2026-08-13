@@ -115,7 +115,7 @@ export function AllocationRunTile({
 
 function Warning({ count, label }: { count: number; label: string }) {
   return (
-    <p className="flex items-center gap-1.5 text-sm text-amber-600 dark:text-amber-500">
+    <p className="flex items-center gap-1.5 text-sm text-warning">
       <TriangleAlert className="size-4 shrink-0" />
       {count} {label}
     </p>

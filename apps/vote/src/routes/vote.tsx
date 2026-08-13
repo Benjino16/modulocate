@@ -230,7 +230,7 @@ function VotePage() {
           size="lg"
           className={cn(
             "w-full max-w-sm text-base",
-            alreadySubmitted && "bg-green-600 text-white hover:bg-green-600/90",
+            alreadySubmitted && "bg-success text-success-foreground hover:bg-success/90",
           )}
           disabled={order.length === 0 || submit.isPending}
           onClick={() => submit.mutate({ moduleIds: currentIds })}

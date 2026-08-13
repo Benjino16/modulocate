@@ -126,7 +126,7 @@ function IssueGroup<T extends { detail: string }>({
   if (issues.length === 0) return null;
   return (
     <div className="flex flex-col gap-1.5">
-      <p className="flex items-center gap-1.5 text-sm font-medium text-amber-600 dark:text-amber-500">
+      <p className="flex items-center gap-1.5 text-sm font-medium text-warning">
         <TriangleAlert className="size-4 shrink-0" />
         {title} ({issues.length})
       </p>

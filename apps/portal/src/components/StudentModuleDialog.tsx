@@ -87,7 +87,7 @@ export function StudentModuleDialog({
           </p>
         )}
         {compliance && !compliance.moduleCountSatisfied && (
-          <p className="flex items-center gap-1.5 text-sm font-medium text-amber-600 dark:text-amber-500">
+          <p className="flex items-center gap-1.5 text-sm font-medium text-warning">
             <TriangleAlert className="size-4 shrink-0" />
             Zu wenige Module: {compliance.moduleCountAssigned} von {compliance.moduleCountTarget}
           </p>
@@ -120,7 +120,7 @@ export function StudentModuleDialog({
                   key={module.id}
                   className={cn(
                     "flex items-center justify-between gap-2 rounded-md px-2 py-1.5",
-                    module.assigned && "bg-green-500/15",
+                    module.assigned && "bg-success/15 dark:bg-success/25",
                   )}
                 >
                   {module.assigned ? (

@@ -58,7 +58,7 @@ function SettingsPage() {
 
           {error && <p className="text-sm text-destructive">{error}</p>}
           {success && !error && (
-            <p className="text-sm text-emerald-600">Test-E-Mail wurde verschickt.</p>
+            <p className="text-sm text-success">Test-E-Mail wurde verschickt.</p>
           )}
 
           <Button type="submit" disabled={sendTestMail.isPending} className="self-start">
