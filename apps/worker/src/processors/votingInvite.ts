@@ -1,6 +1,6 @@
 import { sendVotingInviteEmail } from "@modulocate/mailer";
 import type { VotingInviteJob } from "@modulocate/queue";
-import { loadStudent } from "./common";
+import { loadStudent, loadSetting } from "./common";
 
 const VOTE_APP_URL: string =
   process.env.VOTE_APP_URL ||
@@ -13,10 +13,12 @@ export async function processVotingInvite(data: VotingInviteJob) {
   if (!student.signInCode) {
     throw new Error(`Student ${student.id} has no sign-in code`);
   }
+  const introHtml = await loadSetting(data.projectId, "votingInviteIntro");
   await sendVotingInviteEmail({
     to: student.email,
     studentName: student.name,
     voteLink: `${VOTE_APP_URL}/login?code=${student.signInCode}`,
+    introHtml,
   });
   return { recipient: student.email, studentId: student.id, projectId: student.projectId };
 }

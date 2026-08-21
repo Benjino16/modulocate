@@ -9,18 +9,24 @@ export async function sendTestEmail(to: string) {
   return sendMail({ to, subject, html });
 }
 
-export async function sendVotingInviteEmail(params: { to: string; studentName: string; voteLink: string }) {
-  const { subject, html } = votingInviteTemplate(params);
-  return sendMail({ to: params.to, subject, html });
+export async function sendVotingInviteEmail(params: {
+  to: string;
+  studentName: string;
+  voteLink: string;
+  introHtml?: string;
+}) {
+  const { subject, html, text } = votingInviteTemplate(params);
+  return sendMail({ to: params.to, subject, html, text });
 }
 
 export async function sendVotingResultsEmail(params: {
   to: string;
   studentName: string;
   moduleNames: string[];
+  introHtml?: string;
 }) {
-  const { subject, html } = votingResultsTemplate(params);
-  return sendMail({ to: params.to, subject, html });
+  const { subject, html, text } = votingResultsTemplate(params);
+  return sendMail({ to: params.to, subject, html, text });
 }
 
 export async function sendPasswordResetEmail(params: { to: string; resetLink: string }) {

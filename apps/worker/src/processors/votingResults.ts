@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { db, modules, studentInModule } from "@modulocate/db";
 import { sendVotingResultsEmail } from "@modulocate/mailer";
 import type { VotingResultsJob } from "@modulocate/queue";
-import { loadStudent } from "./common";
+import { loadStudent, loadSetting } from "./common";
 
 export async function processVotingResults(data: VotingResultsJob) {
   const student = await loadStudent(data.studentId);
@@ -11,11 +11,13 @@ export async function processVotingResults(data: VotingResultsJob) {
     .from(studentInModule)
     .innerJoin(modules, eq(modules.id, studentInModule.moduleId))
     .where(eq(studentInModule.studentId, student.id));
+  const introHtml = await loadSetting(data.projectId, "votingResultsIntro");
 
   await sendVotingResultsEmail({
     to: student.email,
     studentName: student.name,
     moduleNames: assigned.map((m) => m.name),
+    introHtml,
   });
   return { recipient: student.email, studentId: student.id, projectId: student.projectId };
 }
