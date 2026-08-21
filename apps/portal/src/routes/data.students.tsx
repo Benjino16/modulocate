@@ -11,12 +11,28 @@ import {
   TableHeader,
   TableRow,
 } from "@modulocate/ui/components/table";
+import { SearchFilterBar } from "@modulocate/ui/components/search-filter-bar";
+import { useListFilter, pruneEmpty, type FilterConfig } from "@modulocate/ui/lib/use-list-filter";
 import { useTRPC } from "../trpc";
 import { useProject } from "../lib/project-context";
 import { StudentDialog } from "../components/StudentDialog";
 
+// Optional keys so an empty search/filter state serializes to no query
+// params at all, instead of leaving "?q=&group=" around by default.
+type StudentsSearch = { q?: string; group?: string[]; rule?: string[] };
+
+function parseStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
+}
+
 export const Route = createFileRoute("/data/students")({
   component: StudentsPage,
+  validateSearch: (search: Record<string, unknown>): StudentsSearch =>
+    pruneEmpty({
+      q: typeof search.q === "string" ? search.q : "",
+      group: parseStringArray(search.group),
+      rule: parseStringArray(search.rule),
+    }),
 });
 
 type Student = {
@@ -33,10 +49,58 @@ type Student = {
 function StudentsPage() {
   const trpc = useTRPC();
   const { projectId } = useProject();
+  const navigate = Route.useNavigate();
+  const { q = "", group = [], rule = [] } = Route.useSearch();
   const { data: students, isLoading } = useQuery({
     ...trpc.students.list.queryOptions({ projectId: projectId! }),
     enabled: !!projectId,
   });
+  const { data: groups } = useQuery({
+    ...trpc.studentGroups.list.queryOptions({ projectId: projectId! }),
+    enabled: !!projectId,
+  });
+  const { data: rules } = useQuery({
+    ...trpc.rules.list.queryOptions({ projectId: projectId! }),
+    enabled: !!projectId,
+  });
+
+  const filters: FilterConfig<Student>[] = [
+    {
+      key: "group",
+      label: "Klasse",
+      options: (groups ?? []).map((g) => ({ value: g.id, label: g.name })),
+      match: (student, selected) => !!student.groupId && selected.includes(student.groupId),
+    },
+    {
+      key: "rule",
+      label: "Regel",
+      options: (rules ?? []).map((r) => ({ value: r.id, label: r.name })),
+      match: (student, selected) => !!student.ruleId && selected.includes(student.ruleId),
+    },
+  ];
+  const activeFilters = { group, rule };
+  const filteredStudents = useListFilter({
+    items: students ?? [],
+    query: q,
+    searchText: (student) => `${student.name} ${student.email} ${student.email2 ?? ""}`,
+    filters,
+    activeFilters,
+  });
+
+  function setQuery(value: string) {
+    navigate({
+      search: (prev) => pruneEmpty({ q: value, group: prev.group ?? [], rule: prev.rule ?? [] }),
+      replace: true,
+    });
+  }
+
+  function setFilter(key: string, values: string[]) {
+    navigate({
+      search: (prev) =>
+        pruneEmpty({ q: prev.q ?? "", group: prev.group ?? [], rule: prev.rule ?? [], [key]: values }) as StudentsSearch,
+      replace: true,
+    });
+  }
 
   const [editingStudent, setEditingStudent] = useState<Student | undefined>();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -60,12 +124,26 @@ function StudentsPage() {
         </Button>
       </div>
 
+      {!isLoading && !!students?.length && (
+        <SearchFilterBar
+          query={q}
+          onQueryChange={setQuery}
+          searchPlaceholder="Schüler durchsuchen…"
+          filters={filters}
+          activeFilters={activeFilters}
+          onFilterChange={setFilter}
+        />
+      )}
+
       {isLoading && <p className="text-muted-foreground">Lade Schüler…</p>}
       {!isLoading && !students?.length && (
         <p className="text-muted-foreground">Noch keine Schüler angelegt.</p>
       )}
+      {!isLoading && !!students?.length && !filteredStudents.length && (
+        <p className="text-muted-foreground">Keine Schüler entsprechen der Suche/den Filtern.</p>
+      )}
 
-      {!!students?.length && (
+      {!!filteredStudents.length && (
         <Table>
           <TableHeader>
             <TableRow>
@@ -76,7 +154,7 @@ function StudentsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {students.map((student) => (
+            {filteredStudents.map((student) => (
               <TableRow
                 key={student.id}
                 onClick={() => openEdit(student)}
