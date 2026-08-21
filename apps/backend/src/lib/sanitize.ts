@@ -4,7 +4,7 @@ import sanitizeHtml from "sanitize-html";
 // italic, underline, bullet list) — anything else client-side JS could smuggle
 // into the HTML payload (script tags, event handler attributes, style-based
 // XSS) is stripped before this ever reaches Postgres.
-export function sanitizeModuleDescription(html: string): string {
+export function sanitizeRichText(html: string): string {
   return sanitizeHtml(html, {
     allowedTags: ["h4", "p", "strong", "em", "u", "ul", "li", "br"],
     allowedAttributes: {},

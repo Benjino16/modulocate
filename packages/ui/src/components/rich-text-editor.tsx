@@ -112,7 +112,7 @@ export function RichTextEditor({
     editorProps: {
       attributes: {
         class: cn(
-          "min-h-24 px-3 py-2 text-sm outline-none",
+          "min-h-24 max-h-[40vh] overflow-y-auto px-3 py-2 text-sm outline-none",
           "[&_h4]:mt-3 [&_h4]:mb-1 [&_h4]:text-sm [&_h4]:font-semibold [&_h4]:first:mt-0",
           "[&_p]:my-1 [&_p]:first:mt-0",
           "[&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5",

@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { BookOpen, Calendar, ScrollText, Tag, Users, UsersRound } from "lucide-react";
+import { BookOpen, Calendar, ScrollText, Settings, Tag, Users, UsersRound } from "lucide-react";
 import { useTRPC } from "../trpc";
 import { useProject } from "../lib/project-context";
 
@@ -39,6 +39,7 @@ function DataOverviewPage() {
   });
 
   const tiles = [
+    { to: "/data/settings", label: "Einstellungen", icon: Settings, count: undefined },
     { to: "/data/modules", label: "Module", icon: BookOpen, count: modules?.length },
     { to: "/data/categories", label: "Kategorien", icon: Tag, count: categories?.length },
     { to: "/data/dates", label: "Termine", icon: Calendar, count: dates?.length },

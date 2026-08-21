@@ -19,7 +19,7 @@ import {
 } from "@modulocate/db";
 import { router, staffProcedure } from "../trpc";
 import { projectScoped } from "./shared";
-import { sanitizeModuleDescription } from "../lib/sanitize";
+import { sanitizeRichText } from "../lib/sanitize";
 
 // Batch-loads modules with their categoryIds (module_in_category) for a
 // project (or a specific subset of module ids). Takes an explicit executor so
@@ -178,7 +178,7 @@ export const modulesRouter = router({
       return db.transaction(async (tx) => {
         const { categoryIds, dateIds, ...fields } = input;
         if (fields.description !== undefined) {
-          fields.description = sanitizeModuleDescription(fields.description);
+          fields.description = sanitizeRichText(fields.description);
         }
         const [module] = await tx
           .insert(modules)
@@ -218,7 +218,7 @@ export const modulesRouter = router({
       return db.transaction(async (tx) => {
         const { id, projectId, categoryIds, dateIds, ...patch } = input;
         if (typeof patch.description === "string") {
-          patch.description = sanitizeModuleDescription(patch.description);
+          patch.description = sanitizeRichText(patch.description);
         }
 
         const [existing] = await tx

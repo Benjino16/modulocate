@@ -4,5 +4,6 @@ export * from "./module";
 export * from "./moduleCategory";
 export * from "./project";
 export * from "./rule";
+export * from "./settings";
 export * from "./student";
 export * from "./studentGroup";

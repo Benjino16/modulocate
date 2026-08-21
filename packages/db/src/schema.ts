@@ -8,6 +8,7 @@ import {
   jsonb,
   primaryKey,
   index,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import type { ProjectPhase } from "@modulocate/shared";
 
@@ -119,12 +120,16 @@ export const projects = pgTable("projects", {
   phase: text("phase").notNull().default("setup").$type<ProjectPhase>(),
 });
 
-export const settings = pgTable("settings", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  projectId: uuid("project_id").notNull().references(() => projects.id),
-  key: text("key").notNull(),
-  value: jsonb("value").notNull(),
-});
+export const settings = pgTable(
+  "settings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id").notNull().references(() => projects.id),
+    key: text("key").notNull(),
+    value: jsonb("value").notNull(),
+  },
+  (table) => [uniqueIndex("settings_project_id_key_idx").on(table.projectId, table.key)],
+);
 
 // Lightweight lookup tags purely for UI sort/grouping (e.g. "all Q1 modules"),
 // deliberately decoupled from `dates`/`module_categories` — those drive rules

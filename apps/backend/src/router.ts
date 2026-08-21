@@ -3,6 +3,7 @@ import { projectsRouter } from "./routers/projects";
 import { studentsRouter } from "./routers/students";
 import { modulesRouter } from "./routers/modules";
 import { moduleCategoriesRouter } from "./routers/moduleCategories";
+import { settingsRouter } from "./routers/settings";
 import { datesRouter } from "./routers/dates";
 import { rulesRouter } from "./routers/rules";
 import { studentGroupsRouter } from "./routers/studentGroups";
@@ -20,6 +21,7 @@ export const appRouter = router({
   students: studentsRouter,
   modules: modulesRouter,
   moduleCategories: moduleCategoriesRouter,
+  settings: settingsRouter,
   dates: datesRouter,
   rules: rulesRouter,
   studentGroups: studentGroupsRouter,
