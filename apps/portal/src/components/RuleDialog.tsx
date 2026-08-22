@@ -226,19 +226,21 @@ export function RuleDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{rule ? "Regel bearbeiten" : "Neue Regel"}</DialogTitle>
+          <DialogTitle>{rule ? "Regeleinstellungen" : "Neue Regel"}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="rule-name">Name</Label>
-            <Input
-              id="rule-name"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              required
-            />
-          </div>
+          {!rule && (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="rule-name">Name</Label>
+              <Input
+                id="rule-name"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                required
+              />
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">

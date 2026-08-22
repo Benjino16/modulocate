@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { Plus, Settings } from "lucide-react";
 import { Button } from "@modulocate/ui/components/button";
 import { useTRPC } from "../trpc";
 import { useProject } from "../lib/project-context";
 import { RuleDialog } from "../components/RuleDialog";
+import { RuleContentDialog } from "../components/RuleContentDialog";
 
 export const Route = createFileRoute("/data/rules")({
   component: RulesPage,
@@ -21,17 +22,24 @@ function RulesPage() {
     enabled: !!projectId,
   });
 
-  const [editingRule, setEditingRule] = useState<Rule | undefined>();
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [settingsRule, setSettingsRule] = useState<Rule | undefined>();
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [contentRule, setContentRule] = useState<Rule | undefined>();
+  const [contentOpen, setContentOpen] = useState(false);
 
   function openCreate() {
-    setEditingRule(undefined);
-    setDialogOpen(true);
+    setSettingsRule(undefined);
+    setSettingsOpen(true);
   }
 
-  function openEdit(rule: Rule) {
-    setEditingRule(rule);
-    setDialogOpen(true);
+  function openSettings(rule: Rule) {
+    setSettingsRule(rule);
+    setSettingsOpen(true);
+  }
+
+  function openContent(rule: Rule) {
+    setContentRule(rule);
+    setContentOpen(true);
   }
 
   return (
@@ -51,14 +59,36 @@ function RulesPage() {
       {!!rules?.length && (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
           {rules.map((rule) => (
-            <button
+            // Not a <button> — it contains the nested settings <button>, and
+            // buttons can't nest. role="button" + keyboard handling keeps it
+            // accessible; group-hover reveals the gear icon.
+            <div
               key={rule.id}
-              type="button"
-              onClick={() => openEdit(rule)}
-              className="rounded-lg border p-4 text-left font-semibold transition-colors hover:bg-accent"
+              role="button"
+              tabIndex={0}
+              onClick={() => openContent(rule)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  openContent(rule);
+                }
+              }}
+              className="group relative flex cursor-pointer flex-col gap-1 rounded-lg border p-4 text-left transition-colors hover:bg-accent"
             >
-              {rule.name}
-            </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openSettings(rule);
+                }}
+                aria-label="Regeleinstellungen"
+                className="absolute top-2 right-2 rounded-md p-1.5 text-muted-foreground opacity-0 transition-opacity hover:bg-background hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100"
+              >
+                <Settings className="size-4" />
+              </button>
+
+              <h3 className="pr-8 font-semibold">{rule.name}</h3>
+            </div>
           ))}
         </div>
       )}
@@ -66,9 +96,18 @@ function RulesPage() {
       {projectId && (
         <RuleDialog
           projectId={projectId}
-          rule={editingRule}
-          open={dialogOpen}
-          onOpenChange={setDialogOpen}
+          rule={settingsRule}
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+        />
+      )}
+
+      {projectId && contentRule && (
+        <RuleContentDialog
+          projectId={projectId}
+          rule={contentRule}
+          open={contentOpen}
+          onOpenChange={setContentOpen}
         />
       )}
     </div>

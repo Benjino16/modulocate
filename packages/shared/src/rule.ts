@@ -17,6 +17,8 @@ const subRuleInput = z.object({
 
 const ruleFields = z.object({
   name: z.string().min(1),
+  // sanitized server-side before persisting — see apps/backend/src/lib/sanitize.ts
+  description: z.string().optional(),
   // how many modules a student under this rule should end up with
   moduleCount: z.number().int().min(1),
   // whether students under this rule get priority during allocation
@@ -43,6 +45,9 @@ export const ruleCreateInput = ruleFields;
 export const ruleUpdateInput = z.object({
   id: z.uuid(),
   name: z.string().min(1).optional(),
+  // Nullable on top of optional, like Module's description: omitted
+  // (undefined) means "leave alone", explicit null means "clear this field".
+  description: z.string().nullable().optional(),
   moduleCount: z.number().int().min(1).optional(),
   priority: z.boolean().optional(),
   subRules: z.array(subRuleInput).optional(),

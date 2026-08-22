@@ -199,6 +199,10 @@ export const rules = pgTable("rules", {
   id: uuid("id").primaryKey().defaultRandom(),
   projectId: uuid("project_id").notNull().references(() => projects.id),
   name: text("name").notNull(),
+  // rich-text HTML, edited via tiptap in the portal and sanitized server-side
+  // before it ever reaches Postgres — see apps/backend/src/lib/sanitize.ts.
+  // Shown to students in the vote app alongside the rule they're allocated under.
+  description: text("description"),
   // how many modules a student under this rule should end up with
   moduleCount: integer("module_count").notNull(),
   // whether students under this rule get priority during allocation

@@ -13,6 +13,7 @@ import {
 } from "@modulocate/db";
 import { router, staffProcedure } from "../trpc";
 import { projectScoped } from "./shared";
+import { sanitizeRichText } from "../lib/sanitize";
 
 // Batch-loads rules with their nested sub-rules/categoryIds and blocked
 // categories/dates for a project (or a specific subset of rule ids). A handful
@@ -77,6 +78,7 @@ async function loadRules(executor: DbExecutor, projectId: string, ids?: string[]
     id: rule.id,
     projectId: rule.projectId,
     name: rule.name,
+    description: rule.description,
     moduleCount: rule.moduleCount,
     priority: rule.priority,
     subRules: subRulesByRule.get(rule.id) ?? [],
@@ -105,6 +107,7 @@ export const rulesRouter = router({
           .values({
             projectId: input.projectId,
             name: input.name,
+            description: input.description !== undefined ? sanitizeRichText(input.description) : undefined,
             moduleCount: input.moduleCount,
             priority: input.priority,
           })
@@ -153,6 +156,7 @@ export const rulesRouter = router({
           id: rule.id,
           projectId: rule.projectId,
           name: rule.name,
+          description: rule.description,
           moduleCount: rule.moduleCount,
           priority: rule.priority,
           subRules: insertedSubRules.map((subRule, i) => ({
@@ -180,6 +184,9 @@ export const rulesRouter = router({
 
         const patch = {
           ...(input.name !== undefined && { name: input.name }),
+          ...(input.description !== undefined && {
+            description: input.description === null ? null : sanitizeRichText(input.description),
+          }),
           ...(input.moduleCount !== undefined && { moduleCount: input.moduleCount }),
           ...(input.priority !== undefined && { priority: input.priority }),
         };
