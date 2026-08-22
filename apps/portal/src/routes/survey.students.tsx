@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Check, Copy, Link2 } from "lucide-react";
+import { Check, Copy, Link2, Mail } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -15,6 +15,7 @@ import { useTRPC } from "../trpc";
 import { useProject } from "../lib/project-context";
 import { resolveVoteStatus, VOTE_STATUS_ROW_COLOR, VOTE_STATUS_SORT_ORDER } from "../lib/voteStatus";
 import { StudentPreferencesDialog } from "../components/StudentPreferencesDialog";
+import { ResendVoteCodeDialog } from "../components/ResendVoteCodeDialog";
 
 export const Route = createFileRoute("/survey/students")({
   component: SurveyStudentsPage,
@@ -29,6 +30,7 @@ type Student = {
   id: string;
   name: string;
   email: string;
+  email2: string | null;
   groupName: string | null;
   ruleName: string | null;
   signInCode: string | null;
@@ -102,9 +104,18 @@ function SurveyStudentsPage() {
   const [selectedStudent, setSelectedStudent] = useState<Student | undefined>();
   const [dialogOpen, setDialogOpen] = useState(false);
 
+  const [resendStudent, setResendStudent] = useState<Student | undefined>();
+  const [resendDialogOpen, setResendDialogOpen] = useState(false);
+
   function openStudent(student: Student) {
     setSelectedStudent(student);
     setDialogOpen(true);
+  }
+
+  function openResend(e: React.MouseEvent, student: Student) {
+    e.stopPropagation();
+    setResendStudent(student);
+    setResendDialogOpen(true);
   }
 
   return (
@@ -149,6 +160,14 @@ function SurveyStudentsPage() {
                         label="Voting-Link kopieren"
                         icon={Link2}
                       />
+                      <button
+                        type="button"
+                        onClick={(e) => openResend(e, student)}
+                        title="Voting-Code erneut zusenden"
+                        className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-accent-foreground group-hover:opacity-100"
+                      >
+                        <Mail className="size-3.5" />
+                      </button>
                     </div>
                   ) : (
                     <span className="text-muted-foreground">–</span>
@@ -174,6 +193,15 @@ function SurveyStudentsPage() {
           student={selectedStudent}
           open={dialogOpen}
           onOpenChange={setDialogOpen}
+        />
+      )}
+
+      {projectId && (
+        <ResendVoteCodeDialog
+          projectId={projectId}
+          student={resendStudent}
+          open={resendDialogOpen}
+          onOpenChange={setResendDialogOpen}
         />
       )}
     </div>
