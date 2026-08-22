@@ -19,9 +19,12 @@ import {
 import { Check, HelpCircle, LogOut } from "lucide-react";
 import { Button } from "@modulocate/ui/components/button";
 import { cn } from "@modulocate/ui/lib/utils";
+import { GreetingScreen } from "../components/GreetingScreen";
+import { IntroScreen } from "../components/IntroScreen";
 import { ModuleInfoDialog } from "../components/ModuleInfoDialog";
 import { SortableModuleRow } from "../components/SortableModuleRow";
 import { TutorialOverlay } from "../components/TutorialOverlay";
+import { clearFreshLoginFlag, hasFreshLoginFlag } from "../lib/freshLoginFlag";
 import { simulateOwnAllocation } from "../lib/simulateAllocation";
 import { hasSeenTutorial } from "../lib/tutorialStorage";
 import { trpcClient, useTRPC } from "../trpc";
@@ -65,39 +68,95 @@ function VotePage() {
 
   const { data: student } = useQuery(trpc.voteAuth.me.queryOptions());
   const { data: eligibleData, isLoading: modulesLoading } = useQuery(trpc.vote.eligibleModules.queryOptions());
-  const modules = eligibleData?.modules ?? [];
+  // Stable identity across renders (not a fresh `?? []` array each time) so
+  // effects/memos keyed on it don't fire spuriously.
+  const modules = useMemo(() => eligibleData?.modules ?? [], [eligibleData]);
   const rule = eligibleData?.rule ?? null;
   const { data: preferences = [], isLoading: preferencesLoading } = useQuery(
     trpc.vote.myPreferences.queryOptions(),
   );
+  const { data: welcomeText, isLoading: welcomeTextLoading } = useQuery(trpc.vote.welcomeText.queryOptions());
   type Module = (typeof modules)[number];
+
+  // The greeting + welcome/rule screens only ever show right after the
+  // student opens the fresh ?code=... link from their email (see
+  // freshLoginFlag.ts and login.tsx) — a revisit (reload, reopening the tab,
+  // the manual-code fallback) drops straight into the survey. Read once via
+  // a lazy initializer (pure, safe under StrictMode's double-invoke); the
+  // flag itself stays set in sessionStorage until the student actually
+  // reaches the survey (see the "reached the survey" effect below) — a
+  // reload while still on the greeting/welcome/rules screens must show them
+  // again, not jump straight to the survey.
+  const [showIntro] = useState(() => hasFreshLoginFlag());
+
+  // The very first screen — "Hallo {Name}" with a start/logout choice —
+  // shown as soon as `student` is known, deliberately not gated on the
+  // module/welcomeText/preferences queries so it never waits on them.
+  const [greetingDismissed, setGreetingDismissed] = useState(false);
+
+  // Pre-survey gate: welcome text, then the student's rule text, each its own
+  // full page (not a dialog) — a step is skipped entirely when there's no
+  // text to show for it. Derived purely from data (no Effect needed): null
+  // while the queries it depends on are still loading, so the survey never
+  // flashes before a step it should've shown. Once the student clicks
+  // "Weiter" (introStepOverride below), that click always wins over
+  // whatever this recomputes to afterward.
+  const initialIntroStep = useMemo<"welcome" | "rules" | "survey" | null>(() => {
+    if (!showIntro) return "survey";
+    if (modulesLoading || welcomeTextLoading) return null;
+    if (welcomeText) return "welcome";
+    if (rule?.description) return "rules";
+    return "survey";
+  }, [showIntro, modulesLoading, welcomeTextLoading, welcomeText, rule]);
+  const [introStepOverride, setIntroStepOverride] = useState<"welcome" | "rules" | "survey" | null>(null);
+  const introStep = introStepOverride ?? initialIntroStep;
+
+  // Only now — greeting dismissed and past whichever of welcome/rules
+  // applied — has the student actually reached the survey, so only now is
+  // the fresh-login flag consumed. Idempotent (clearFreshLoginFlag is a
+  // no-op once the key is gone), so re-running this on every render after
+  // that point is harmless.
+  useEffect(() => {
+    if (showIntro && greetingDismissed && introStep === "survey") {
+      clearFreshLoginFlag();
+    }
+  }, [showIntro, greetingDismissed, introStep]);
 
   // Ranking starts from the student's saved preference order (ranked modules
   // first, in rank order), with any eligible-but-not-yet-ranked modules
-  // appended — then lives entirely in local state until submitted, since
-  // rank is derived from array position, not stored per drag.
-  const [order, setOrder] = useState<Module[] | null>(null);
+  // appended. Derived purely from data (no Effect needed): once the student
+  // starts dragging (orderOverride below, set from handleDragEnd), that
+  // local edit always wins over whatever this recomputes to afterward (e.g.
+  // a background refetch of `preferences`).
+  const baseOrder = useMemo<Module[] | null>(() => {
+    if (modulesLoading || preferencesLoading) return null;
+    const rankedIds = preferences.map((p) => p.moduleId);
+    const byId = new Map(modules.map((m) => [m.id, m]));
+    const ranked = rankedIds.map((id) => byId.get(id)).filter((m): m is Module => Boolean(m));
+    const unranked = modules.filter((m) => !rankedIds.includes(m.id));
+    return [...ranked, ...unranked];
+  }, [modules, preferences, modulesLoading, preferencesLoading]);
+  const [orderOverride, setOrderOverride] = useState<Module[] | null>(null);
+  const order = orderOverride ?? baseOrder;
+
   const [infoModule, setInfoModule] = useState<Module | null>(null);
-  // null = not decided yet (waiting on `student`); true/false once resolved.
-  const [tutorialOpen, setTutorialOpen] = useState<boolean | null>(null);
   // Overrides the localStorage read once a submit succeeds in this session,
   // so the button reflects it immediately without a storage round-trip.
   const [submittedOverride, setSubmittedOverride] = useState<string[] | null>(null);
   const cachedOrder = student ? (submittedOverride ?? readCachedOrder(student.studentId)) : null;
 
-  useEffect(() => {
-    if (order !== null || modulesLoading || preferencesLoading) return;
-    const rankedIds = preferences.map((p) => p.moduleId);
-    const byId = new Map(modules.map((m) => [m.id, m]));
-    const ranked = rankedIds.map((id) => byId.get(id)).filter((m): m is Module => Boolean(m));
-    const unranked = modules.filter((m) => !rankedIds.includes(m.id));
-    setOrder([...ranked, ...unranked]);
-  }, [modules, preferences, modulesLoading, preferencesLoading, order]);
-
-  useEffect(() => {
-    if (!student) return;
-    setTutorialOpen((current) => current ?? !hasSeenTutorial(student.studentId));
-  }, [student]);
+  // Auto-opening the tutorial is tied to the same fresh-link condition as
+  // the greeting/welcome/rule screens (see showIntro above) — a revisit
+  // shouldn't replay it uninvited. Derived purely from data (no Effect
+  // needed): the help-icon button's manual reopen and the tutorial's own
+  // "done" callback (tutorialOverride below) always win over this
+  // recomputing.
+  const autoTutorialOpen = useMemo(() => {
+    if (!student) return null;
+    return showIntro && !hasSeenTutorial(student.studentId);
+  }, [student, showIntro]);
+  const [tutorialOverride, setTutorialOverride] = useState<boolean | null>(null);
+  const tutorialOpen = tutorialOverride ?? autoTutorialOpen;
 
   // "What would I get, assuming no competition from other students" —
   // recomputed locally on every reorder, no network round-trip (see
@@ -148,21 +207,59 @@ function VotePage() {
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    setOrder((current) => {
-      if (!current) return current;
-      const oldIndex = current.findIndex((m) => m.id === active.id);
-      const newIndex = current.findIndex((m) => m.id === over.id);
-      if (oldIndex === -1 || newIndex === -1) return current;
-      return arrayMove(current, oldIndex, newIndex);
-    });
+    if (!over || active.id === over.id || !order) return;
+    const oldIndex = order.findIndex((m) => m.id === active.id);
+    const newIndex = order.findIndex((m) => m.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    setOrderOverride(arrayMove(order, oldIndex, newIndex));
   }
 
-  if (modulesLoading || preferencesLoading || order === null) {
+  if (!student) {
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <p className="text-muted-foreground">Wird geladen…</p>
+      </div>
+    );
+  }
+
+  if (showIntro && !greetingDismissed) {
+    return (
+      <GreetingScreen
+        name={student.name}
+        hasVoted={student.hasVoted}
+        onStart={() => setGreetingDismissed(true)}
+        onLogout={() => logout.mutate()}
+      />
+    );
+  }
+
+  if (modulesLoading || preferencesLoading || welcomeTextLoading || order === null || (showIntro && introStep === null)) {
     return (
       <div className="flex flex-1 items-center justify-center">
         <p className="text-muted-foreground">Module werden geladen…</p>
       </div>
+    );
+  }
+
+  if (showIntro && introStep === "welcome") {
+    return (
+      <IntroScreen
+        title="Willkommen"
+        html={welcomeText ?? ""}
+        buttonLabel="Weiter"
+        onContinue={() => setIntroStepOverride(rule?.description ? "rules" : "survey")}
+      />
+    );
+  }
+
+  if (showIntro && introStep === "rules" && rule?.description) {
+    return (
+      <IntroScreen
+        title={rule.name}
+        html={rule.description}
+        buttonLabel="Weiter"
+        onContinue={() => setIntroStepOverride("survey")}
+      />
     );
   }
 
@@ -173,9 +270,9 @@ function VotePage() {
     <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 p-6 pb-28">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Deine Modulwahl</h1>
+          <h1 className="text-2xl font-semibold">{student.name} – Modulwahl</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Bring die Module in deine Wunschreihenfolge — dein Favorit steht oben.
+            Bring die Module in deine Wunschreihenfolge, deine Favoriten stehen oben.
           </p>
           {predictedModuleIds.size > 0 && (
             <p className="mt-1 text-xs text-muted-foreground">
@@ -189,7 +286,7 @@ function VotePage() {
             variant="ghost"
             size="icon"
             aria-label="Tutorial erneut anzeigen"
-            onClick={() => setTutorialOpen(true)}
+            onClick={() => setTutorialOverride(true)}
           >
             <HelpCircle />
           </Button>
@@ -252,7 +349,7 @@ function VotePage() {
       <ModuleInfoDialog module={infoModule} onOpenChange={(open) => !open && setInfoModule(null)} />
 
       {student && tutorialOpen && (
-        <TutorialOverlay studentId={student.studentId} onDone={() => setTutorialOpen(false)} />
+        <TutorialOverlay studentId={student.studentId} onDone={() => setTutorialOverride(false)} />
       )}
     </div>
   );

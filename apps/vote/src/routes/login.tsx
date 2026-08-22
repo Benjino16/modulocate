@@ -5,6 +5,7 @@ import { z } from "zod";
 import { Button } from "@modulocate/ui/components/button";
 import { Input } from "@modulocate/ui/components/input";
 import { Label } from "@modulocate/ui/components/label";
+import { markFreshLogin } from "../lib/freshLoginFlag";
 import { useTRPC } from "../trpc";
 
 // The emailed vote link is /login?code=... (see
@@ -41,7 +42,14 @@ function LoginPage() {
   );
 
   useEffect(() => {
-    if (code) login.mutate({ code });
+    if (code) {
+      // Only the ?code=... auto-login counts as "opened the fresh link from
+      // the email" — the manual-entry fallback below is a lost-session
+      // recovery, not a first open, so it never sets this flag (see
+      // freshLoginFlag.ts and /vote's greeting/welcome/rule screens).
+      markFreshLogin();
+      login.mutate({ code });
+    }
     // Only ever run once per mount for the code the link arrived with.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

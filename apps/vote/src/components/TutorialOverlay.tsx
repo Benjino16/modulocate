@@ -113,7 +113,7 @@ const steps: Step[] = [
   },
   {
     title: "Module in Reihenfolge bringen",
-    text: "Zieh die Module am Griff-Symbol in deine Wunschreihenfolge — ganz oben steht dein Favorit.",
+    text: "Zieh die Module am Griff-Symbol in deine Wunschreihenfolge — ganz oben stehen deine Favoriten.",
     Demo: DragDemo,
   },
   {

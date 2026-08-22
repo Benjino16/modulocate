@@ -49,5 +49,15 @@ export const voteAuthRouter = router({
     return { success: true as const };
   }),
 
-  me: publicProcedure.query(({ ctx }) => ctx.student),
+  // Resolved live (not carried in the session JWT, which only holds
+  // studentId/projectId) so a name change in the portal shows up immediately
+  // on the next load — same reasoning as eligibleModules' live resolution.
+  me: publicProcedure.query(async ({ ctx }) => {
+    if (!ctx.student) return null;
+    const [row] = await db
+      .select({ name: students.name, voteStatus: students.voteStatus })
+      .from(students)
+      .where(eq(students.id, ctx.student.studentId));
+    return row ? { ...ctx.student, name: row.name, hasVoted: row.voteStatus === "voted" } : null;
+  }),
 });

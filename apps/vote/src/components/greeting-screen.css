@@ -1,0 +1,65 @@
+@keyframes greeting-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* The name gets its own, slightly bigger entrance — a little overshoot on
+   the scale plus a settling glow pulse afterward, so it reads as the
+   "moment" of the page rather than just another line of text. */
+@keyframes greeting-name-reveal {
+  0% {
+    opacity: 0;
+    transform: translateY(22px) scale(0.82);
+  }
+  65% {
+    opacity: 1;
+    transform: translateY(0) scale(1.05);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes greeting-name-glow {
+  0%,
+  100% {
+    text-shadow: 0 0 0 color-mix(in oklch, var(--color-primary) 0%, transparent);
+  }
+  50% {
+    text-shadow: 0 0 22px color-mix(in oklch, var(--color-primary) 40%, transparent);
+  }
+}
+
+.greeting-eyebrow {
+  animation: greeting-fade-up 0.7s ease-out both;
+}
+
+.greeting-name {
+  animation:
+    greeting-name-reveal 1s cubic-bezier(0.16, 1, 0.3, 1) 0.3s both,
+    greeting-name-glow 3s ease-in-out 1.4s infinite;
+}
+
+.greeting-subtext {
+  animation: greeting-fade-up 0.7s ease-out 0.75s both;
+}
+
+.greeting-actions {
+  animation: greeting-fade-up 0.7s ease-out 1.05s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .greeting-eyebrow,
+  .greeting-name,
+  .greeting-subtext,
+  .greeting-actions {
+    animation: none;
+  }
+}

@@ -4,6 +4,10 @@ import { categoryInSubRule, moduleInCategory, moduleInDate, rules, subRules } fr
 
 export interface AllocationRulePreview {
   id: string;
+  // name/description are display-only — never read by the allocation engine
+  // itself, only by the vote app's pre-survey rule-text screen.
+  name: string;
+  description: string | null;
   moduleCount: number;
   priority: boolean;
   subRules: { id: string; categoryIds: string[] }[];
@@ -35,6 +39,8 @@ export async function resolveAllocationRuleById(
 
   return {
     id: ruleRow.id,
+    name: ruleRow.name,
+    description: ruleRow.description,
     moduleCount: ruleRow.moduleCount,
     priority: ruleRow.priority,
     subRules: subRuleRows.map((row) => ({ id: row.id, categoryIds: categoryIdsBySubRule.get(row.id) ?? [] })),

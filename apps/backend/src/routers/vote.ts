@@ -8,6 +8,7 @@ import {
   moduleCategories,
   moduleInCategory,
   projects,
+  settings,
   students,
   studentPreferences,
   resolveStudentEligibility,
@@ -18,6 +19,17 @@ import {
 import { router, protectedStudentProcedure } from "../trpc";
 
 export const voteRouter = router({
+  // The intro page shown before the survey itself (see planning.md/portal
+  // settings "Begrüßungstext in der Umfrage") — rich-text HTML, already
+  // sanitized on save.
+  welcomeText: protectedStudentProcedure.query(async ({ ctx }) => {
+    const [row] = await db
+      .select({ value: settings.value })
+      .from(settings)
+      .where(and(eq(settings.projectId, ctx.student.projectId), eq(settings.key, "welcomeText")));
+    return (row?.value as string) ?? "";
+  }),
+
   // Modules the logged-in student is currently allowed to see — resolved
   // live per request, not from a snapshot (see planning.md "Deferred
   // Decision: Live Resolution for the Vote App").
