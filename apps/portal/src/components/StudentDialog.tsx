@@ -123,7 +123,7 @@ export function StudentDialog({
       projectId,
       name: form.name.trim(),
       email: form.email.trim(),
-      email2: form.email2.trim() || undefined,
+      email2: form.email2.trim() || null,
       groupId: form.groupId === NO_GROUP ? null : form.groupId,
       ruleId: form.ruleId === NO_RULE ? null : form.ruleId,
     };

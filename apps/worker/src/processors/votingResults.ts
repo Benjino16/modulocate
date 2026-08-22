@@ -12,12 +12,13 @@ export async function processVotingResults(data: VotingResultsJob) {
     .innerJoin(modules, eq(modules.id, studentInModule.moduleId))
     .where(eq(studentInModule.studentId, student.id));
   const introHtml = await loadSetting(data.projectId, "votingResultsIntro");
+  const recipients = [student.email, student.email2].filter((email): email is string => !!email);
 
   await sendVotingResultsEmail({
-    to: student.email,
+    to: recipients,
     studentName: student.name,
     moduleNames: assigned.map((m) => m.name),
     introHtml,
   });
-  return { recipient: student.email, studentId: student.id, projectId: student.projectId };
+  return { recipient: recipients.join(", "), studentId: student.id, projectId: student.projectId };
 }

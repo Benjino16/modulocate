@@ -234,29 +234,36 @@ export const studentGroups = pgTable("student_groups", {
   ruleId: uuid("rule_id").references(() => rules.id, { onDelete: "set null" }),
 });
 
-export const students = pgTable("students", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  projectId: uuid("project_id").notNull().references(() => projects.id),
-  name: text("name").notNull(),
-  email: text("email").notNull().unique(),
-  email2: text("email_2").unique(),
-  signInCode: text("sign_in_code").unique(),
-  voteStatus: text("vote_status").notNull(),
-  // Set once, on the student's first successful vote-app login — distinct
-  // from voteSubmittedAt so the portal can show "opened but not voted yet"
-  // instead of collapsing that into a single voted/not-voted flag.
-  voteOpenedAt: timestamp("vote_opened_at", { withTimezone: true }),
-  // Overwritten on every submitPreferences call (not just the first), since
-  // resubmitting while the election is open is allowed and "last voted at"
-  // should reflect the most recent submission.
-  voteSubmittedAt: timestamp("vote_submitted_at", { withTimezone: true }),
-  // Set only on the first successful voting-invite send, never overwritten —
-  // unlike voteSubmittedAt, later sends (second email address, manual resend)
-  // shouldn't move this. email_log still holds the full send history.
-  voteCodeSentAt: timestamp("vote_code_sent_at", { withTimezone: true }),
-  // overrides the group's rule when set; same "set null, not owned" reasoning
-  ruleId: uuid("rule_id").references(() => rules.id, { onDelete: "set null" }),
-});
+export const students = pgTable(
+  "students",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id").notNull().references(() => projects.id),
+    name: text("name").notNull(),
+    // Unique per project, not globally — the same person can be a student in
+    // multiple projects. email2 has no uniqueness constraint at all: it's
+    // often a parent's address, shared across siblings in the same project.
+    email: text("email").notNull(),
+    email2: text("email_2"),
+    signInCode: text("sign_in_code").unique(),
+    voteStatus: text("vote_status").notNull(),
+    // Set once, on the student's first successful vote-app login — distinct
+    // from voteSubmittedAt so the portal can show "opened but not voted yet"
+    // instead of collapsing that into a single voted/not-voted flag.
+    voteOpenedAt: timestamp("vote_opened_at", { withTimezone: true }),
+    // Overwritten on every submitPreferences call (not just the first), since
+    // resubmitting while the election is open is allowed and "last voted at"
+    // should reflect the most recent submission.
+    voteSubmittedAt: timestamp("vote_submitted_at", { withTimezone: true }),
+    // Set only on the first successful voting-invite send, never overwritten —
+    // unlike voteSubmittedAt, later sends (second email address, manual resend)
+    // shouldn't move this. email_log still holds the full send history.
+    voteCodeSentAt: timestamp("vote_code_sent_at", { withTimezone: true }),
+    // overrides the group's rule when set; same "set null, not owned" reasoning
+    ruleId: uuid("rule_id").references(() => rules.id, { onDelete: "set null" }),
+  },
+  (table) => [uniqueIndex("students_project_id_email_idx").on(table.projectId, table.email)],
+);
 
 export const studentInGroup = pgTable(
   "student_in_group",

@@ -14,11 +14,12 @@ export async function processVotingInvite(data: VotingInviteJob) {
     throw new Error(`Student ${student.id} has no sign-in code`);
   }
   const introHtml = await loadSetting(data.projectId, "votingInviteIntro");
+  const recipients = [student.email, student.email2].filter((email): email is string => !!email);
   await sendVotingInviteEmail({
-    to: student.email,
+    to: recipients,
     studentName: student.name,
     voteLink: `${VOTE_APP_URL}/login?code=${student.signInCode}`,
     introHtml,
   });
-  return { recipient: student.email, studentId: student.id, projectId: student.projectId };
+  return { recipient: recipients.join(", "), studentId: student.id, projectId: student.projectId };
 }

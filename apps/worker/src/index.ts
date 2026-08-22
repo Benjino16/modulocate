@@ -88,11 +88,12 @@ emailWorker.on("failed", async (job, err) => {
 
   try {
     const student = await loadStudent(job.data.studentId);
+    const recipient = [student.email, student.email2].filter((email): email is string => !!email).join(", ");
     await db.insert(emailLog).values({
       projectId: student.projectId,
       studentId: student.id,
       type: job.name,
-      recipient: student.email,
+      recipient,
       status: "failed",
       error: err.message,
     });

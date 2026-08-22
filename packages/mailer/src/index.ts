@@ -10,7 +10,7 @@ export async function sendTestEmail(to: string) {
 }
 
 export async function sendVotingInviteEmail(params: {
-  to: string;
+  to: string | string[];
   studentName: string;
   voteLink: string;
   introHtml?: string;
@@ -20,7 +20,7 @@ export async function sendVotingInviteEmail(params: {
 }
 
 export async function sendVotingResultsEmail(params: {
-  to: string;
+  to: string | string[];
   studentName: string;
   moduleNames: string[];
   introHtml?: string;
