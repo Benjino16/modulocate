@@ -72,3 +72,14 @@ export async function deleteAllocationRun(projectId: string, runId: string): Pro
   await redis.zrem(indexKey(projectId), runId);
   return removed > 0;
 }
+
+// Bulk variant of deleteAllocationRun — used when the survey is reopened from
+// allocating/reviewing back to voting, since every run computed from the old
+// vote set is stale the moment new votes can come in.
+export async function deleteAllocationRunsForProject(projectId: string): Promise<number> {
+  const redis = getRedisConnection();
+  const runIds = await redis.zrange(indexKey(projectId), 0, -1);
+  if (runIds.length === 0) return 0;
+  await redis.del(...runIds.map((id) => runKey(projectId, id)), indexKey(projectId));
+  return runIds.length;
+}

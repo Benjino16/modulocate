@@ -24,9 +24,11 @@ function SurveyPage() {
 
   const invalidateProjects = () =>
     queryClient.invalidateQueries({ queryKey: trpc.projects.list.queryKey() });
+  const invalidateStudents = () =>
+    queryClient.invalidateQueries({ queryKey: trpc.students.list.queryKey({ projectId: projectId! }) });
 
-  const startElection = useMutation(
-    trpc.projects.startElection.mutationOptions({
+  const openElection = useMutation(
+    trpc.projects.openElection.mutationOptions({
       onSuccess: invalidateProjects,
       onError: (err) => setError(err.message),
     }),
@@ -39,38 +41,76 @@ function SurveyPage() {
     }),
   );
 
-  function handleStart() {
-    if (!projectId) return;
+  const sendVotingInvites = useMutation(
+    trpc.students.sendVotingInvites.mutationOptions({
+      onSuccess: invalidateStudents,
+      onError: (err) => setError(err.message),
+    }),
+  );
+
+  async function handleSendEmails() {
+    if (!projectId || !project) return;
     setError(undefined);
-    if (
-      !window.confirm(
-        "Umfrage jetzt öffnen? Dadurch werden automatisch E-Mails mit den Voting-Links an alle Schüler verschickt.",
-      )
-    ) {
-      return;
+
+    const alreadyOpen = project.phase === "voting";
+    const confirmed = window.confirm(
+      alreadyOpen
+        ? "E-Mails mit den Voting-Links erneut an alle Schüler verschicken?"
+        : "E-Mails mit den Voting-Links an alle Schüler verschicken? Die Umfrage wird dadurch automatisch geöffnet.",
+    );
+    if (!confirmed) return;
+
+    try {
+      if (!alreadyOpen) {
+        await openElection.mutateAsync({ projectId });
+      }
+      await sendVotingInvites.mutateAsync({ projectId });
+    } catch {
+      // onError above already recorded the message.
     }
-    startElection.mutate({ projectId });
   }
 
-  function handleStop() {
-    if (!projectId) return;
+  function handleToggleOpen() {
+    if (!projectId || !project) return;
     setError(undefined);
-    if (
-      !window.confirm(
-        "Umfrage jetzt schließen? Schüler können danach nicht mehr abstimmen, und das Projekt wechselt in die Zuteilungs-Phase.",
-      )
-    ) {
+
+    if (project.phase === "voting") {
+      if (
+        !window.confirm(
+          "Umfrage jetzt schließen? Schüler können danach nicht mehr abstimmen, und das Projekt wechselt in die Zuteilungs-Phase.",
+        )
+      ) {
+        return;
+      }
+      stopElection.mutate({ projectId });
       return;
     }
-    stopElection.mutate({ projectId });
+
+    const reopening = project.phase === "allocating" || project.phase === "reviewing";
+    const confirmed = window.confirm(
+      reopening
+        ? "Umfrage erneut öffnen? Der aktuelle Zuteilungsstand (alle Durchläufe und geladenen Zuteilungen) wird dabei gelöscht, da er nach neuen Stimmen nicht mehr gültig ist. Schüler können danach wieder abstimmen."
+        : "Umfrage jetzt öffnen? Schüler können danach mit ihrem Voting-Code abstimmen.",
+    );
+    if (!confirmed) return;
+    openElection.mutate({ projectId });
   }
+
+  const canSendEmails = project?.phase === "setup" || project?.phase === "voting";
+  const canToggleOpen =
+    project?.phase === "setup" ||
+    project?.phase === "voting" ||
+    project?.phase === "allocating" ||
+    project?.phase === "reviewing";
+  const isTerminal =
+    project?.phase === "published" || project?.phase === "closed" || project?.phase === "finalized";
 
   return (
     <>
       <h1 className="text-2xl font-semibold">Umfrage</h1>
       <p className="mt-1 text-muted-foreground">
-        Startet die Wahl und verschickt die Vote-Links an alle Schüler. Danach sind die Module
-        gesperrt, bis die Umfrage wieder geschlossen wird.
+        Öffne die Umfrage, damit Schüler abstimmen können, und verschicke unabhängig davon die E-Mails
+        mit den Voting-Links. Beide Schritte lassen sich bei Bedarf wiederholen.
       </p>
 
       {!!students?.length && (
@@ -84,26 +124,30 @@ function SurveyPage() {
         </div>
       )}
 
-      {project?.phase === "setup" && (
-        <Button className="mt-4" onClick={handleStart} disabled={startElection.isPending}>
-          Umfrage starten
-        </Button>
-      )}
+      <div className="mt-4 flex gap-3">
+        {canSendEmails && (
+          <Button
+            onClick={handleSendEmails}
+            disabled={openElection.isPending || sendVotingInvites.isPending}
+          >
+            E-Mails verschicken
+          </Button>
+        )}
 
-      {project?.phase === "voting" && (
-        <Button
-          className="mt-4"
-          variant="destructive"
-          onClick={handleStop}
-          disabled={stopElection.isPending}
-        >
-          Umfrage stoppen
-        </Button>
-      )}
+        {canToggleOpen && (
+          <Button
+            variant={project?.phase === "setup" ? "default" : "destructive"}
+            onClick={handleToggleOpen}
+            disabled={openElection.isPending || stopElection.isPending}
+          >
+            {project?.phase === "voting" ? "Umfrage schließen" : "Umfrage öffnen"}
+          </Button>
+        )}
+      </div>
 
-      {project && project.phase !== "setup" && project.phase !== "voting" && (
+      {isTerminal && (
         <p className="mt-4 text-muted-foreground">
-          Die Umfrage ist bereits abgeschlossen (Phase: {project.phase}).
+          Die Umfrage ist bereits abgeschlossen (Phase: {project?.phase}).
         </p>
       )}
 

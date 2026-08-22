@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { and, eq, inArray } from "drizzle-orm";
@@ -50,6 +51,10 @@ async function loadStudents(executor: DbExecutor, projectId: string, ids?: strin
     );
 }
 
+function generateSignInCode(): string {
+  return randomBytes(24).toString("base64url");
+}
+
 export const studentsRouter = router({
   list: staffProcedure.input(projectScoped).query(({ input }) => loadStudents(db, input.projectId)),
 
@@ -85,7 +90,7 @@ export const studentsRouter = router({
       return db.transaction(async (tx) => {
         const [student] = await tx
           .insert(students)
-          .values({ ...rest, voteStatus: "not_voted" })
+          .values({ ...rest, voteStatus: "not_voted", signInCode: generateSignInCode() })
           .returning();
         if (groupId) {
           await tx.insert(studentInGroup).values({ studentId: student.id, groupId, projectId: input.projectId });
@@ -163,17 +168,21 @@ export const studentsRouter = router({
     }),
 });
 
-// Shared with projects.startElection, which sends invites to every student
-// right after minting sign-in codes for the ones that didn't have one yet.
+// Shared with projects.openElection (send-all after opening) and
+// students.sendVotingInvites (resend, to all or to one student). Any
+// recipient still missing a sign-in code — legacy students created before
+// codes were minted at creation time — gets one here, right before the
+// invite is queued, so this never fails on a stale/missing code.
 export async function enqueueVotingInvites(projectId: string, studentIds?: string[]) {
-  const recipients = await loadStudents(db, projectId, studentIds);
-  const missingCode = recipients.filter((s) => !s.signInCode);
-  if (missingCode.length > 0) {
-    throw new TRPCError({
-      code: "PRECONDITION_FAILED",
-      message: `${missingCode.length} Schüler:innen haben noch keinen Sign-in-Code.`,
-    });
-  }
+  const recipients = await db.transaction(async (tx) => {
+    const rows = await loadStudents(tx, projectId, studentIds);
+    const missingCode = rows.filter((s) => !s.signInCode);
+    if (missingCode.length === 0) return rows;
+    for (const student of missingCode) {
+      await tx.update(students).set({ signInCode: generateSignInCode() }).where(eq(students.id, student.id));
+    }
+    return loadStudents(tx, projectId, studentIds);
+  });
 
   await getEmailQueue().addBulk(
     recipients.map((student) => ({

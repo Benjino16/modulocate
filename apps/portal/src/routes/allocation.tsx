@@ -19,7 +19,9 @@ const tabs = [{ to: "/allocation", label: "Zuteilung" }];
 function AllocationPage() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const { projectId } = useProject();
+  const { projects, projectId } = useProject();
+  const project = projects.find((p) => p.id === projectId);
+  const canStartRun = project?.phase === "allocating" || project?.phase === "reviewing";
 
   const [prioPercent, setPrioPercent] = useState("20");
   const [seed, setSeed] = useState("");
@@ -106,10 +108,16 @@ function AllocationPage() {
           />
         </div>
 
-        <Button type="submit" disabled={!projectId || startRun.isPending}>
+        <Button type="submit" disabled={!projectId || !canStartRun || startRun.isPending}>
           Neuen Durchlauf starten
         </Button>
       </form>
+
+      {projectId && !canStartRun && (
+        <p className="mt-2 text-sm text-muted-foreground">
+          Durchläufe sind nur während der Zuteilungs- oder Anpassungs-Phase möglich.
+        </p>
+      )}
 
       {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
 
