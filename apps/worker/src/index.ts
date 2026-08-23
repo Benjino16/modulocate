@@ -69,6 +69,13 @@ emailWorker.on("completed", async (job) => {
       .set({ voteCodeSentAt: new Date() })
       .where(and(eq(students.id, result.studentId), isNull(students.voteCodeSentAt)));
   }
+
+  if (job.name === EmailJobName.VotingResults) {
+    await db
+      .update(students)
+      .set({ resultsSentAt: new Date() })
+      .where(and(eq(students.id, result.studentId), isNull(students.resultsSentAt)));
+  }
 });
 
 emailWorker.on("failed", async (job, err) => {

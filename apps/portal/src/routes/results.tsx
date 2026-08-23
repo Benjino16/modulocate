@@ -1,86 +1,19 @@
-import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Button } from "@modulocate/ui/components/button";
-import { useTRPC } from "../trpc";
-import { useProject } from "../lib/project-context";
+import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { PhaseLayout } from "../components/PhaseLayout";
 
 export const Route = createFileRoute("/results")({
-  component: ResultsPage,
+  component: ResultsLayout,
 });
 
-const tabs = [{ to: "/results", label: "Ergebnisse" }];
+const tabs = [
+  { to: "/results", label: "Ergebnisse" },
+  { to: "/results/students", label: "Schüler" },
+];
 
-function ResultsPage() {
-  const trpc = useTRPC();
-  const queryClient = useQueryClient();
-  const { projects, projectId } = useProject();
-  const project = projects.find((p) => p.id === projectId);
-  const [error, setError] = useState<string | undefined>();
-
-  const publishResults = useMutation(
-    trpc.projects.publishResults.mutationOptions({
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: trpc.projects.list.queryKey() }),
-      onError: (err) => setError(err.message),
-    }),
-  );
-
-  function handlePublish() {
-    if (!projectId) return;
-    setError(undefined);
-    if (
-      !window.confirm(
-        "Ergebnisse jetzt versenden? Die Zuteilung wird damit final gesperrt und jeder Schüler erhält eine E-Mail mit seinen zugeteilten Modulen.",
-      )
-    ) {
-      return;
-    }
-    publishResults.mutate({ projectId });
-  }
-
+function ResultsLayout() {
   return (
     <PhaseLayout tabs={tabs}>
-      <h1 className="text-2xl font-semibold">Ergebnisse</h1>
-      <p className="mt-1 text-muted-foreground">
-        Finaler Lock-In der Zuteilung. Nach dem Versand sind die Ergebnisse für Schüler und
-        Lehrkräfte einsehbar und exportierbar.
-      </p>
-
-      {project?.phase === "reviewing" && (
-        <Button className="mt-4" onClick={handlePublish} disabled={publishResults.isPending}>
-          Ergebnisse versenden
-        </Button>
-      )}
-
-      {project?.phase === "published" && (
-        <>
-          <p className="mt-4 text-muted-foreground">
-            Die Ergebnisse wurden bereits versendet.
-          </p>
-          <div className="mt-4 flex gap-3">
-            <Button asChild variant="outline">
-              <a href={`/api/projects/${projectId}/exports/attendance-lists.pdf`} download>
-                Anwesenheitslisten (PDF)
-              </a>
-            </Button>
-            <Button asChild variant="outline">
-              <a href={`/api/projects/${projectId}/exports/participant-lists.pdf`} download>
-                Teilnehmerlisten (PDF)
-              </a>
-            </Button>
-          </div>
-        </>
-      )}
-
-      {project && project.phase !== "reviewing" && project.phase !== "published" && (
-        <p className="mt-4 text-muted-foreground">
-          Die Ergebnisse können erst versendet werden, sobald eine Zuteilung geladen wurde
-          (aktuelle Phase: {project.phase}).
-        </p>
-      )}
-
-      {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
+      <Outlet />
     </PhaseLayout>
   );
 }

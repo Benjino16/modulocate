@@ -35,6 +35,7 @@ async function loadStudents(executor: DbExecutor, projectId: string, ids?: strin
       voteCodeSentAt: students.voteCodeSentAt,
       voteOpenedAt: students.voteOpenedAt,
       voteSubmittedAt: students.voteSubmittedAt,
+      resultsSentAt: students.resultsSentAt,
       ruleId: students.ruleId,
       ruleName: rules.name,
       groupId: studentGroups.id,
@@ -164,6 +165,15 @@ export const studentsRouter = router({
     .input(projectScoped.extend({ studentIds: z.array(z.uuid()).optional() }))
     .mutation(async ({ input }) => {
       const enqueued = await enqueueVotingInvites(input.projectId, input.studentIds);
+      return { enqueued };
+    }),
+
+  // Same shape as sendVotingInvites: all students by default, or a single
+  // student for a resend from the results "Schüler" tab.
+  sendVotingResults: staffProcedure
+    .input(projectScoped.extend({ studentIds: z.array(z.uuid()).optional() }))
+    .mutation(async ({ input }) => {
+      const enqueued = await enqueueVotingResults(input.projectId, input.studentIds);
       return { enqueued };
     }),
 });

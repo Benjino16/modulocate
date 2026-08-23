@@ -28,7 +28,7 @@ function AdjustmentsPage() {
     setError(undefined);
     if (
       !window.confirm(
-        "Zuteilung jetzt finalisieren? Die Ergebnisse werden gesperrt und per E-Mail an alle Schüler verschickt.",
+        "Zuteilung jetzt finalisieren? Die Ergebnisse werden damit gesperrt. Der Versand an die Schüler erfolgt separat auf der Ergebnisse-Seite.",
       )
     ) {
       return;

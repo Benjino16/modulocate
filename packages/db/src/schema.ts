@@ -267,6 +267,9 @@ export const students = pgTable(
     // unlike voteSubmittedAt, later sends (second email address, manual resend)
     // shouldn't move this. email_log still holds the full send history.
     voteCodeSentAt: timestamp("vote_code_sent_at", { withTimezone: true }),
+    // Set only on the first successful results-email send, never overwritten —
+    // same reasoning as voteCodeSentAt. email_log still holds the full send history.
+    resultsSentAt: timestamp("results_sent_at", { withTimezone: true }),
     // overrides the group's rule when set; same "set null, not owned" reasoning
     ruleId: uuid("rule_id").references(() => rules.id, { onDelete: "set null" }),
   },

@@ -1,0 +1,1 @@
+ALTER TABLE "students" ADD COLUMN "results_sent_at" timestamp with time zone;

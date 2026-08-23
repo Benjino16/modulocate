@@ -1,11 +1,10 @@
 import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
 import { projectCreateInput, projectPhase } from "@modulocate/shared";
-import { db, projects, students, studentInModule } from "@modulocate/db";
+import { db, projects, studentInModule } from "@modulocate/db";
 import { deleteAllocationRunsForProject } from "@modulocate/queue";
 import { router, staffProcedure } from "../trpc";
 import { projectScoped } from "./shared";
-import { enqueueVotingResults } from "./students";
 
 // Stopgap until auth/sessions exist: lists every project so the portal's
 // project switcher has something to select from (see projectScoped in ./shared).
@@ -89,17 +88,17 @@ export const projectsRouter = router({
   }),
 
   // reviewing -> published (see planning.md Phase 5 "Publication"). Locks the
-  // allocation in and dispatches the final module assignment to every
-  // student — retry-safe: a retry after a partial failure just re-sends
-  // already-queued results (see enqueueVotingResults).
+  // allocation in — sending results is a separate, explicit step
+  // (students.sendVotingResults; see the portal's "Ergebnisse verschicken"
+  // button), not a side effect of finalizing.
   publishResults: staffProcedure.input(projectScoped).mutation(async ({ input }) => {
-    const { project, studentIds } = await db.transaction(async (tx) => {
+    const { project } = await db.transaction(async (tx) => {
       const [project] = await tx.select().from(projects).where(eq(projects.id, input.projectId));
       if (!project) throw new TRPCError({ code: "NOT_FOUND" });
       if (project.phase !== projectPhase.enum.reviewing) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
-          message: `Die Ergebnisse können nur aus Phase "${projectPhase.enum.reviewing}" versendet werden (aktuell: "${project.phase}").`,
+          message: `Die Zuteilung kann nur aus Phase "${projectPhase.enum.reviewing}" finalisiert werden (aktuell: "${project.phase}").`,
         });
       }
 
@@ -109,11 +108,9 @@ export const projectsRouter = router({
         .where(eq(projects.id, input.projectId))
         .returning();
 
-      const allStudents = await tx.select({ id: students.id }).from(students).where(eq(students.projectId, input.projectId));
-      return { project: updated, studentIds: allStudents.map((s) => s.id) };
+      return { project: updated };
     });
 
-    const resultsEnqueued = await enqueueVotingResults(input.projectId, studentIds);
-    return { project, resultsEnqueued };
+    return { project };
   }),
 });
