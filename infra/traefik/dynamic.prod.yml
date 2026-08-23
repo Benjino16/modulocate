@@ -4,31 +4,41 @@
 # instead of the Vite dev server ports (5173/5174).
 #
 # Still no Host() match, same reasoning as dev: keeps this file usable
-# regardless of which hostname/IP actually reaches the box. Once there's a
-# real domain and TLS in front of this (not part of the Docker image work —
-# see infra/compose.prod.yaml), it's worth tightening the routers to
-# Host(`your-domain`) && PathPrefix(...) so a spoofed Host header can't get
-# routed at all.
+# regardless of which hostname/IP actually reaches the box — it'd otherwise
+# have to be kept in sync with DOMAIN in infra/compose.prod.yaml, and this
+# file can't see that env var (it's a plain file mount, not part of the
+# compose file's own variable substitution). If a spoofed Host header
+# reaching a router by IP is a concern, tighten these to
+# Host(`your-domain`) && PathPrefix(...) by hand.
+#
+# `tls: {}` on every router below just turns on TLS termination for that
+# router — the actual cert (for DOMAIN, via Let's Encrypt) is requested
+# statically by the websecure entrypoint in compose.prod.yaml, not derived
+# from these rules.
 http:
   routers:
     backend:
       rule: "PathPrefix(`/api`)"
       service: backend
+      tls: {}
     portal:
       rule: "PathPrefix(`/portal`)"
       service: portal
       middlewares:
         - add-trailing-slash-portal
+      tls: {}
     vote:
       rule: "PathPrefix(`/voting`)"
       service: vote
       middlewares:
         - add-trailing-slash-vote
+      tls: {}
     root:
       rule: "Path(`/`)"
       service: vote
       middlewares:
         - redirect-root
+      tls: {}
 
   middlewares:
     redirect-root:

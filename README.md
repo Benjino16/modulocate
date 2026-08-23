@@ -24,7 +24,9 @@ Edit `.env` for this environment — at minimum:
 
 - `STUDENT_SESSION_SECRET`, `BETTER_AUTH_SECRET` — generate real secrets, e.g. `openssl rand -hex 32` each. Do **not** reuse the dev placeholders.
 - `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` — pick a real password. These configure the `postgres` container directly and are also used to build `DATABASE_URL` for `backend`/`worker`/`migrate` (see `infra/compose.prod.yaml`) — the `DATABASE_URL` value in `.env` itself is not read by the prod stack, only by tooling run outside Docker (e.g. Drizzle Studio), so keep it in sync manually if you use that.
-- `BETTER_AUTH_URL` — the public origin apps/staff will use, e.g. `https://your-domain.example` (defaults to the dev-only `http://modulocate.localhost`).
+- `DOMAIN` — the hostname Traefik requests its Let's Encrypt certificate for (e.g. `your-domain.example`). Must already have an A/AAAA record pointing at this server before you start the stack, or the ACME challenge fails.
+- `ACME_EMAIL` — where Let's Encrypt sends expiry/problem notices.
+- `BETTER_AUTH_URL` — the public origin apps/staff will use, e.g. `https://your-domain.example` (same host as `DOMAIN`, `https://`; defaults to the dev-only `http://modulocate.localhost`).
 - `VOTE_APP_URL` — same origin + `/voting`, e.g. `https://your-domain.example/voting`. Used in emails sent to students.
 - `SMTP_*` / `MAIL_FROM` — a real mail provider; `SMTP_HOST=localhost` (the dev Mailpit catcher) won't work here.
 - `ADMIN_EMAIL` / `ADMIN_PASSWORD` / `ADMIN_NAME` — optional, bootstraps one staff account on first backend start. Leave blank to skip.
@@ -56,11 +58,12 @@ docker compose -f infra/compose.prod.yaml --env-file .env up -d
 
 ### 3. Verify
 
-- `curl http://<server>/api/healthz` — backend.
-- `curl http://<server>/` — should redirect to `/portal/` (staff UI); `/voting/` is the student vote app.
+- `curl https://<domain>/api/healthz` — backend.
+- `curl https://<domain>/` — should redirect to `/voting/` (student vote app); `/portal/` is the staff UI.
 - `docker compose -f infra/compose.prod.yaml --env-file .env ps` — all services healthy/running.
+- `docker compose -f infra/compose.prod.yaml --env-file .env logs traefik | grep -i acme` — confirm the certificate was actually issued, not just that Traefik started.
 
-**TLS is not set up here.** Traefik only listens on plain `:80` (see the comment block at the top of `infra/compose.prod.yaml`). Put this behind a TLS-terminating reverse proxy, or add a `websecure` entrypoint + ACME resolver to the Traefik service, before exposing it to the public internet.
+**TLS is set up by default** — Traefik gets a Let's Encrypt cert for `DOMAIN` via HTTP-01 challenge on `:80` and serves everything over `:443`, `:80` only redirects. This requires DNS for `DOMAIN` to already resolve to this server and both `80` and `443` to be reachable from the internet *before* the stack starts — if the challenge can't complete, Traefik still comes up (serving its internal self-signed cert) and keeps retrying, but every browser will show a cert warning until DNS/ports are fixed and it succeeds.
 
 ### Redeploying / updating
 
@@ -86,7 +89,7 @@ Data (`postgres_data`, `redis_data` volumes) survives `down`. To wipe it too, ad
 
 ## Building the images from source
 
-No GitHub Actions pipeline publishes to GHCR yet, so until that exists, this is the only way to actually run the stack — the section above documents the intended shape of the deploy once it does. It's also useful for testing an unpublished change on the target machine directly.
+`.github/workflows/docker-publish.yml` publishes `backend`/`worker`/`portal`/`vote` to GHCR on every push to `main` (as `:latest` + `:sha-<short>`) and on version tags (as `:X.Y.Z` + `:X.Y`) — the section above is the normal path. Building locally here is mainly useful for testing an unpublished change on the target machine directly, without waiting on CI.
 
 Layer `infra/compose.prod.build.yaml` on top of the base file — it adds a `build:` (context + Dockerfile) for `backend`/`worker`/`portal`/`vote` alongside the base file's `image:`, so Compose builds locally and tags the result under that same image name instead of pulling:
 
