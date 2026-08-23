@@ -399,6 +399,55 @@ describe("allocate", () => {
     expect(result.issues).toEqual([]);
   });
 
+  it("reports rule_violation using the exact solver, not the greedy credit order, when a module spans two exclusive sub-rules", () => {
+    // "dual" belongs to both Herz and Pflicht categories, but each is its own
+    // exclusive sub-rule — so dual can only ever count toward one of them.
+    // Ranked first, creditSubRule's greedy, no-lookahead, order-dependent
+    // tie-break (see its comment) locks dual to "Herz" (first sub-rule in the
+    // array) purely because it's processed before any other candidate, even
+    // though three other pure-Herz modules end up assigned too and could
+    // have freed dual for "Pflicht" instead. The old satisfiedSubRuleIds-based
+    // report took that greedy credit at face value and flagged a violation
+    // that isn't real; the fix re-checks the final assigned set exactly
+    // (same solver the admin UI's ruleCompliance.ts uses), which finds the
+    // valid assignment and reports none.
+    const herz = id<CategoryId>("herz");
+    const pflicht = id<CategoryId>("pflicht");
+    const kopf = id<CategoryId>("kopf");
+    const hand = id<CategoryId>("hand");
+    const r = rule("r1", {
+      moduleCount: 6,
+      subRules: [
+        { id: id<SubRuleId>("sr_herz"), categoryIds: [herz] },
+        { id: id<SubRuleId>("sr_kopf"), categoryIds: [kopf] },
+        { id: id<SubRuleId>("sr_hand"), categoryIds: [hand] },
+        { id: id<SubRuleId>("sr_pflicht"), categoryIds: [pflicht] },
+      ],
+    });
+    const dual = module("dual", { max: 30, categoryIds: [herz, pflicht] });
+    const herzA = module("herzA", { max: 30, categoryIds: [herz] });
+    const herzB = module("herzB", { max: 30, categoryIds: [herz] });
+    const herzC = module("herzC", { max: 30, categoryIds: [herz] });
+    const kopfModule = module("kopf1", { max: 30, categoryIds: [kopf] });
+    const handModule = module("hand1", { max: 30, categoryIds: [hand] });
+
+    const input = baseInput({
+      rules: [r],
+      modules: [dual, herzA, herzB, herzC, kopfModule, handModule],
+      students: [
+        student("s1", "r1", {
+          preferences: [dual, herzA, herzB, herzC, kopfModule, handModule].map((m, i) => ({
+            moduleId: m.id,
+            rank: i + 1,
+          })),
+        }),
+      ],
+    });
+
+    const result = allocate(input, defaultConfig);
+    expect(result.issues).toEqual([]);
+  });
+
   it("throws if a student references a rule not present in the input", () => {
     const input = baseInput({
       rules: [],

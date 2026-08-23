@@ -1,4 +1,5 @@
 import { createRng } from "./rng";
+import { evaluateRuleFulfillment } from "./evaluateRule";
 import type {
   AllocationConfig,
   AllocationInput,
@@ -280,11 +281,25 @@ export function allocate(input: AllocationInput, config: AllocationConfig): Allo
         detail: `${state.assignedModuleIds.length} von ${state.rule.moduleCount} Modulen zugewiesen`,
       });
     }
-    if (state.satisfiedSubRuleIds.size < state.rule.subRules.length) {
+    // Re-checked exactly here rather than trusting state.satisfiedSubRuleIds:
+    // creditSubRule is a greedy, no-lookahead, order-dependent heuristic (see
+    // its comment) — it can lock a multi-category module (one whose
+    // categories span two different sub-rules) to whichever sub-rule it
+    // happens to reach first, even when a different credit assignment over
+    // the same final module set would have satisfied every sub-rule. Running
+    // the exact solver once per student here (small, fixed input — bounded by
+    // moduleCount and subRules.length, both typically single digits) reports
+    // what's actually true of the final assignment instead of an artifact of
+    // greedy processing order, and keeps this in sync with evaluateRuleFulfillment's
+    // other caller, the admin review UI (ruleCompliance.ts).
+    const assignedModules = state.assignedModuleIds.map((moduleId) => moduleById.get(moduleId)!);
+    const evaluation = evaluateRuleFulfillment(assignedModules, state.rule);
+    const unsatisfiedSubRuleCount = evaluation.subRules.filter((subRule) => !subRule.satisfied).length;
+    if (unsatisfiedSubRuleCount > 0) {
       issues.push({
         type: "rule_violation",
         studentId: state.student.id,
-        detail: `${state.rule.subRules.length - state.satisfiedSubRuleIds.size} von ${state.rule.subRules.length} Teilregeln nicht erfüllt`,
+        detail: `${unsatisfiedSubRuleCount} von ${state.rule.subRules.length} Teilregeln nicht erfüllt`,
       });
     }
   }
