@@ -164,15 +164,23 @@ export function allocate(input: AllocationInput, config: AllocationConfig): Allo
         recordRejection(state, id);
       }
       list = list.filter((id) => (moduleRuntimes.get(id)?.remainingCapacityThisRound ?? 0) > 0);
-    } else {
-      const stillNeeded = state.rule.moduleCount - state.assignedModuleIds.length;
-      list = list.slice(0, Math.max(stillNeeded, 0));
     }
 
     if (state.satisfiedSubRuleIds.size < state.rule.subRules.length) {
       const ruleSatisfying = list.filter((id) => moduleHelpsOpenSubRule(state, moduleById.get(id)!));
-      if (ruleSatisfying.length > 0) return ruleSatisfying;
+      if (ruleSatisfying.length > 0) list = ruleSatisfying;
     }
+
+    // Window-size cap applied last (prio round only): an unranked module that
+    // is the only way to satisfy a still-open sub-rule must survive the
+    // ruleSatisfying filter above before this trims the list down — capping
+    // by rank position first (as this used to) could discard it in favor of
+    // lower-priority ranked modules that don't help any open sub-rule.
+    if (isPrioRound) {
+      const stillNeeded = state.rule.moduleCount - state.assignedModuleIds.length;
+      list = list.slice(0, Math.max(stillNeeded, 0));
+    }
+
     return list;
   }
 

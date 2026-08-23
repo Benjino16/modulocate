@@ -362,6 +362,43 @@ describe("allocate", () => {
     expect(result.metrics.moduleDemand[id<ModuleId>("m_sport")]).toEqual({ rejections: 1, rejectionsViaRuleRequirement: 1 });
   });
 
+  it("still assigns unranked modules needed for open sub-rules in the prio round, even when top-ranked prefs alone would fill moduleCount", () => {
+    const herz = id<CategoryId>("herz");
+    const kopf = id<CategoryId>("kopf");
+    const r = rule("r1", {
+      moduleCount: 3,
+      priority: true,
+      subRules: [
+        { id: id<SubRuleId>("sr_herz"), categoryIds: [herz] },
+        { id: id<SubRuleId>("sr_kopf"), categoryIds: [kopf] },
+      ],
+    });
+    const herzModules = ["herz1", "herz2", "herz3"].map((mid) => module(mid, { max: 30, categoryIds: [herz] }));
+    const kopfModule = module("kopf1", { max: 30, categoryIds: [kopf] });
+
+    const input = baseInput({
+      rules: [r],
+      modules: [...herzModules, kopfModule],
+      students: [
+        // Ranks exactly `moduleCount` (3) modules, all Herz, and never ranks
+        // the Kopf module it's still required to get — only reachable via
+        // eligibleModuleIds. The old prio-round window sliced the ranked+
+        // unranked list down to `stillNeeded` *before* checking which
+        // candidates could satisfy an open sub-rule, so kopf1 was silently
+        // discarded and never even considered.
+        student("test-user", "r1", {
+          preferences: herzModules.map((m, i) => ({ moduleId: m.id, rank: i + 1 })),
+          eligibleModuleIds: [...herzModules.map((m) => m.id), kopfModule.id],
+        }),
+      ],
+    });
+
+    const result = allocate(input, defaultConfig);
+    const assignedModuleIds = result.assignments.map((a) => a.moduleId).sort();
+    expect(assignedModuleIds).toContain("kopf1");
+    expect(result.issues).toEqual([]);
+  });
+
   it("throws if a student references a rule not present in the input", () => {
     const input = baseInput({
       rules: [],
