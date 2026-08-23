@@ -26,7 +26,7 @@ http:
         - add-trailing-slash-vote
     root:
       rule: "Path(`/`)"
-      service: portal
+      service: vote
       middlewares:
         - redirect-root
 
@@ -34,7 +34,7 @@ http:
     redirect-root:
       redirectRegex:
         regex: "^(https?://[^/]+)/$"
-        replacement: "${1}/portal/"
+        replacement: "${1}/voting/"
     add-trailing-slash-portal:
       redirectRegex:
         regex: "^(https?://[^/]+)/portal$"

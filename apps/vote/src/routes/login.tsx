@@ -2,6 +2,8 @@ import { useEffect } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
+import { LayoutDashboard } from "lucide-react";
+import { GithubIcon } from "../components/GithubIcon";
 import { translateLoginError } from "../lib/voteErrors";
 import { useTRPC } from "../trpc";
 
@@ -61,6 +63,20 @@ function LoginPage() {
         Die Teilnahme an der Modulwahl ist nur über deinen persönlichen Einladungslink aus der E-Mail möglich.
       </p>
       <p className="text-sm text-muted-foreground">Bei Fragen oder Problemen melde dich bei deiner Schule.</p>
+
+      <div className="fixed inset-x-0 bottom-0 flex items-center justify-center gap-6 border-t bg-background/95 p-4 text-sm text-muted-foreground backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        <a href="/portal/" className="inline-flex items-center gap-1.5 hover:text-foreground">
+          <LayoutDashboard className="size-4" /> Admin
+        </a>
+        <a
+          href="https://github.com/Benjino16/modulocate"
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1.5 hover:text-foreground"
+        >
+          <GithubIcon className="size-4" /> GitHub
+        </a>
+      </div>
     </div>
   );
 }
