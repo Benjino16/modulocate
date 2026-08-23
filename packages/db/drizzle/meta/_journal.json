@@ -8,6 +8,13 @@
       "when": 1787451179182,
       "tag": "0000_regular_william_stryker",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1787504885700,
+      "tag": "0001_loving_silver_sable",
+      "breakpoints": true
     }
   ]
 }

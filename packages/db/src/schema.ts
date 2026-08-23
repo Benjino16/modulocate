@@ -186,8 +186,12 @@ export const moduleCategories = pgTable("module_categories", {
 export const moduleInCategory = pgTable(
   "module_in_category",
   {
-    moduleId: uuid("module_id").notNull().references(() => modules.id),
-    categoryId: uuid("category_id").notNull().references(() => moduleCategories.id),
+    moduleId: uuid("module_id")
+      .notNull()
+      .references(() => modules.id, { onDelete: "cascade" }),
+    categoryId: uuid("category_id")
+      .notNull()
+      .references(() => moduleCategories.id, { onDelete: "cascade" }),
     projectId: uuid("project_id").notNull().references(() => projects.id),
   },
   (table) => [primaryKey({ columns: [table.moduleId, table.categoryId] })],
@@ -288,8 +292,12 @@ export const dates = pgTable("dates", {
 export const moduleInDate = pgTable(
   "module_in_date",
   {
-    moduleId: uuid("module_id").notNull().references(() => modules.id),
-    dateId: uuid("date_id").notNull().references(() => dates.id),
+    moduleId: uuid("module_id")
+      .notNull()
+      .references(() => modules.id, { onDelete: "cascade" }),
+    dateId: uuid("date_id")
+      .notNull()
+      .references(() => dates.id, { onDelete: "cascade" }),
     projectId: uuid("project_id").notNull().references(() => projects.id),
   },
   (table) => [primaryKey({ columns: [table.moduleId, table.dateId] })],

@@ -321,9 +321,10 @@ export const modulesRouter = router({
       return { success: true as const };
     }),
 
-  // Hard delete. Fails with a DB FK error if preferences/eligibility/blocking
-  // rows still reference the module — deliberately left as the DB default
-  // (no onDelete) rather than guessing a cascade policy; see planning.md.
+  // Hard delete. moduleInCategory/moduleInDate rows cascade automatically
+  // (pure join rows with no independent meaning). Still fails with a DB FK
+  // error if student preferences/eligibility/blocking rows reference the
+  // module — deliberately left as the DB default there; see planning.md.
   remove: staffProcedure
     .input(projectScoped.extend({ id: z.uuid() }))
     .mutation(async ({ input }) => {
