@@ -5,7 +5,7 @@
 #
 # Still no Host() match, same reasoning as dev: keeps this file usable
 # regardless of which hostname/IP actually reaches the box — it'd otherwise
-# have to be kept in sync with DOMAIN in infra/compose.prod.yaml, and this
+# have to be kept in sync with DOMAIN in compose.yaml (repo root), and this
 # file can't see that env var (it's a plain file mount, not part of the
 # compose file's own variable substitution). If a spoofed Host header
 # reaching a router by IP is a concern, tighten these to
@@ -13,7 +13,7 @@
 #
 # `tls: {}` on every router below just turns on TLS termination for that
 # router — the actual cert (for DOMAIN, via Let's Encrypt) is requested
-# statically by the websecure entrypoint in compose.prod.yaml, not derived
+# statically by the websecure entrypoint in compose.yaml, not derived
 # from these rules.
 http:
   routers:

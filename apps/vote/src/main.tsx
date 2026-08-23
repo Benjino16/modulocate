@@ -9,7 +9,7 @@ import { TRPCProvider, trpcClient } from "./trpc";
 
 const queryClient = new QueryClient();
 // basepath matches the /voting PathPrefix Traefik routes this app under
-// (see infra/compose.dev.yaml, infra/compose.prod.yaml) and the base in vite.config.ts.
+// (see compose.dev.yaml, compose.yaml) and the base in vite.config.ts.
 const router = createRouter({ routeTree, basepath: "/voting" });
 
 declare module "@tanstack/react-router" {

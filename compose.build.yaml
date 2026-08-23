@@ -1,0 +1,29 @@
+# Optional override for compose.yaml: build backend/worker/portal/vote from
+# this checkout instead of pulling them from GHCR. Layer it on top of the
+# base file — the merged services keep the base file's `image:` name (so the
+# result is tagged and cached like any other local image) but gain a
+# `build:`, which Compose uses whenever that image isn't present locally
+# yet, or when `--build` is passed explicitly.
+#
+# Usage (run from the repo root):
+#   docker compose -f compose.yaml -f compose.build.yaml up -d --build
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.backend
+
+  worker:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.worker
+
+  portal:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.portal
+
+  vote:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.vote

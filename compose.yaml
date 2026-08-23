@@ -4,14 +4,15 @@ name: modulocate
 # portal/vote from GHCR (see README.md at the repo root for the full deploy
 # walkthrough) — no toolchain, no local build, just `docker compose ... up`.
 # To build those four images from this checkout instead, layer
-# infra/compose.prod.build.yaml on top (see that file's own header).
+# compose.build.yaml on top (see that file's own header).
 #
-# Usage (run from the repo root, so `.env` and `--env-file .env` line up):
-#   docker compose -f infra/compose.prod.yaml --env-file .env up -d
-# `--env-file` is required: without it, ${POSTGRES_USER}/${POSTGRES_PASSWORD}/
-# ${POSTGRES_DB} below resolve from infra/.env (this file's own directory,
-# Compose's default project directory), not the repo-root .env that
-# env_file: ../.env already reads for the containers themselves.
+# Usage (run from the repo root):
+#   docker compose up -d
+# This file and `.env` both live at the repo root, which is also Compose's
+# default project directory (the directory of the first -f file, or the cwd
+# when none is given) — so a plain `docker compose ...` picks up both with
+# no `-f`/`--env-file` needed, for both ${POSTGRES_USER}-style interpolation
+# below and the `env_file: .env` the containers themselves read.
 #
 # MODULOCATE_IMAGE_REPO/MODULOCATE_IMAGE_TAG below pick which image to pull
 # per service — override in .env or on the command line (e.g. to roll back
@@ -30,7 +31,7 @@ name: modulocate
 # will show a cert warning until it succeeds.
 #
 # Not handled here (deliberately out of scope for the image work itself):
-# - Secrets: env_file: ../.env is the same mechanism as dev — fine for a
+# - Secrets: env_file: .env is the same mechanism as dev — fine for a
 #   single-box deploy, but the values in it (BETTER_AUTH_SECRET,
 #   STUDENT_SESSION_SECRET, POSTGRES_PASSWORD, SMTP credentials) must be
 #   real, per-environment secrets here, not the dev placeholders from
@@ -63,7 +64,7 @@ services:
     restart: unless-stopped
 
   # Fronts backend/portal/vote under one origin, same reasoning as dev (see
-  # infra/compose.dev.yaml) — same-origin cookies, no CORS. No dashboard here
+  # compose.dev.yaml) — same-origin cookies, no CORS. No dashboard here
   # (dev's --api.insecure is dev-only, unauthenticated by design).
   #
   # TLS: web (:80) does nothing but the ACME HTTP-01 challenge and redirects
@@ -91,7 +92,7 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./traefik/dynamic.prod.yml:/etc/traefik/dynamic/dynamic.yml:ro
+      - ./infra/traefik/dynamic.prod.yml:/etc/traefik/dynamic/dynamic.yml:ro
       - letsencrypt_data:/letsencrypt
     depends_on:
       - backend
@@ -101,10 +102,14 @@ services:
 
   backend:
     image: ${MODULOCATE_IMAGE_REPO:-ghcr.io/benjino16/modulocate}-backend:${MODULOCATE_IMAGE_TAG:-latest}
-    env_file: ../.env
+    env_file: .env
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379
+      # Derived from DOMAIN instead of a separate .env entry — this is
+      # always the same origin Traefik terminates TLS for above, no reason
+      # to type the domain a second time. See .env.example.
+      BETTER_AUTH_URL: https://${DOMAIN}
     depends_on:
       postgres:
         condition: service_healthy
@@ -114,10 +119,12 @@ services:
 
   worker:
     image: ${MODULOCATE_IMAGE_REPO:-ghcr.io/benjino16/modulocate}-worker:${MODULOCATE_IMAGE_TAG:-latest}
-    env_file: ../.env
+    env_file: .env
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379
+      # Derived from DOMAIN, same reasoning as backend's BETTER_AUTH_URL above.
+      VOTE_APP_URL: https://${DOMAIN}/voting
     depends_on:
       postgres:
         condition: service_healthy
@@ -146,14 +153,14 @@ services:
   # "migrate" image is published, and the repo is already checked out
   # locally anyway (this compose file lives in it). Run before rolling out
   # a new backend/worker:
-  #   docker compose -f infra/compose.prod.yaml --env-file .env --profile migrate run --rm migrate
+  #   docker compose --profile migrate run --rm migrate
   migrate:
     build:
-      context: ..
+      context: .
       dockerfile: infra/Dockerfile.backend
       target: build
     command: pnpm --filter @modulocate/db db:migrate
-    env_file: ../.env
+    env_file: .env
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     depends_on:

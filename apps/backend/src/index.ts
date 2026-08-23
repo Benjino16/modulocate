@@ -16,7 +16,7 @@ server.get("/healthz", async () => ({ status: "ok" }));
 // No CORS needed: backend, portal and vote all live behind Traefik under one
 // origin (http://modulocate.localhost, path-routed to /api, /portal,
 // /voting), so every request — including the student session cookie and the
-// better-auth session cookie — is same-origin. See infra/compose.dev.yaml, infra/compose.prod.yaml.
+// better-auth session cookie — is same-origin. See compose.dev.yaml, compose.yaml.
 await server.register(cookie);
 
 // better-auth's own fetch-Request handler, bridged onto Fastify. Reuses

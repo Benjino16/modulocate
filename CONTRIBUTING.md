@@ -33,7 +33,7 @@ pnpm dev
 
 This runs `docker compose up --build --watch`, bringing up Postgres, Redis, Mailpit, Traefik, and all four apps (backend, worker, portal, vote), and keeps the containers in sync with your local file edits (see [Hot reload](#hot-reload) below). Leave it running in a terminal.
 
-Once `pnpm dev` is up, apply the database schema — `packages/db` has no `.env` of its own anymore, so this runs inside the `backend` container, where `DATABASE_URL` comes from Compose's `env_file`. `packages/db/src` is watch-synced into the running container (see `infra/compose.dev.yaml`), so this picks up schema changes with no rebuild:
+Once `pnpm dev` is up, apply the database schema — `packages/db` has no `.env` of its own anymore, so this runs inside the `backend` container, where `DATABASE_URL` comes from Compose's `env_file`. `packages/db/src` is watch-synced into the running container (see `compose.dev.yaml`), so this picks up schema changes with no rebuild:
 
 ```bash
 pnpm db:push
@@ -56,7 +56,7 @@ Everything is served same-origin behind Traefik at `http://modulocate.localhost`
 
 ## Hot reload
 
-`infra/compose.dev.yaml` uses [Docker Compose Watch](https://docs.docker.com/compose/how-tos/file-watch/) to sync `src/` changes straight into the running containers, where Vite/tsx pick them up. This only activates under `docker compose watch` (or `up --watch`, which is what `pnpm dev` uses) — plain `docker compose up` will start stale containers with no live sync at all, which looks exactly like "hot reload is broken." Always use `pnpm dev`.
+`compose.dev.yaml` uses [Docker Compose Watch](https://docs.docker.com/compose/how-tos/file-watch/) to sync `src/` changes straight into the running containers, where Vite/tsx pick them up. This only activates under `docker compose watch` (or `up --watch`, which is what `pnpm dev` uses) — plain `docker compose up` will start stale containers with no live sync at all, which looks exactly like "hot reload is broken." Always use `pnpm dev`.
 
 Editing `package.json`, `vite.config.ts`, or `tsconfig.json` isn't synced (dependency/config changes need a real rebuild) — rerun `pnpm dev` to rebuild and pick those up.
 
@@ -73,6 +73,6 @@ pnpm build                                        # turbo build across the works
 
 ## Troubleshooting
 
-- **Hot reload not picking up changes**: make sure you started with `pnpm dev`, not `docker compose up`. If containers are already running without watch, `docker compose -f infra/compose.dev.yaml down` and restart with `pnpm dev`.
+- **Hot reload not picking up changes**: make sure you started with `pnpm dev`, not `docker compose up`. If containers are already running without watch, `docker compose -f compose.dev.yaml down` and restart with `pnpm dev`.
 - **Changed a `package.json`/`vite.config.ts`/`tsconfig.json` and nothing happened**: expected — rerun `pnpm dev` to rebuild.
 - **`corepack enable` fails with `EACCES`, or `pnpm` throws `ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING`**: you're on a distro-packaged Node. Switch to nvm (see Prerequisites) — no more `sudo`, and a corepack version that matches pnpm 11.

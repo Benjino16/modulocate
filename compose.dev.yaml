@@ -13,13 +13,12 @@ name: modulocate
 # never restarted (reproduced twice, isolating each service into its own
 # Dockerfile didn't help). A silently-dead unrelated service is worse than
 # the alternative, so: editing package.json/vite.config.ts/tsconfig.json
-# needs a manual `docker compose -f infra/compose.dev.yaml up --build` for
-# now.
+# needs a manual `docker compose -f compose.dev.yaml up --build` for now.
 #
-# Usage: docker compose -f infra/compose.dev.yaml watch
+# Usage: docker compose -f compose.dev.yaml watch
 # (or `up --watch` to start + watch in one command)
 #
-# Not shared with infra/compose.prod.yaml — prod uses its own Dockerfiles
+# Not shared with compose.yaml — prod uses its own Dockerfiles
 # (multi-stage, compiled output) and its own restart/networking posture, so
 # there's nothing here worth inheriting there.
 services:
@@ -82,7 +81,7 @@ services:
       - "80:80"
       - "8080:8080" # dashboard: http://localhost:8080
     volumes:
-      - ./traefik/dynamic.yml:/etc/traefik/dynamic/dynamic.yml:ro
+      - ./infra/traefik/dynamic.yml:/etc/traefik/dynamic/dynamic.yml:ro
     depends_on:
       - backend
       - portal
@@ -90,10 +89,10 @@ services:
 
   backend:
     build:
-      context: ..
+      context: .
       dockerfile: infra/Dockerfile.dev
     command: pnpm --filter @modulocate/backend dev
-    env_file: ../.env
+    env_file: .env
     environment:
       DATABASE_URL: postgres://modulocate:modulocate@postgres:5432/modulocate
       REDIS_URL: redis://redis:6379
@@ -106,34 +105,34 @@ services:
         condition: service_healthy
     develop:
       watch:
-        - path: ../apps/backend/src
+        - path: ./apps/backend/src
           action: sync
           target: /app/apps/backend/src
-        - path: ../packages/allocation-engine/src
+        - path: ./packages/allocation-engine/src
           action: sync
           target: /app/packages/allocation-engine/src
-        - path: ../packages/db/src
+        - path: ./packages/db/src
           action: sync
           target: /app/packages/db/src
-        - path: ../packages/mailer/src
+        - path: ./packages/mailer/src
           action: sync
           target: /app/packages/mailer/src
-        - path: ../packages/pdf-export/src
+        - path: ./packages/pdf-export/src
           action: sync
           target: /app/packages/pdf-export/src
-        - path: ../packages/queue/src
+        - path: ./packages/queue/src
           action: sync
           target: /app/packages/queue/src
-        - path: ../packages/shared/src
+        - path: ./packages/shared/src
           action: sync
           target: /app/packages/shared/src
 
   worker:
     build:
-      context: ..
+      context: .
       dockerfile: infra/Dockerfile.dev
     command: pnpm --filter @modulocate/worker dev
-    env_file: ../.env
+    env_file: .env
     environment:
       DATABASE_URL: postgres://modulocate:modulocate@postgres:5432/modulocate
       REDIS_URL: redis://redis:6379
@@ -146,60 +145,60 @@ services:
         condition: service_healthy
     develop:
       watch:
-        - path: ../apps/worker/src
+        - path: ./apps/worker/src
           action: sync
           target: /app/apps/worker/src
-        - path: ../packages/allocation-engine/src
+        - path: ./packages/allocation-engine/src
           action: sync
           target: /app/packages/allocation-engine/src
-        - path: ../packages/db/src
+        - path: ./packages/db/src
           action: sync
           target: /app/packages/db/src
-        - path: ../packages/mailer/src
+        - path: ./packages/mailer/src
           action: sync
           target: /app/packages/mailer/src
-        - path: ../packages/queue/src
+        - path: ./packages/queue/src
           action: sync
           target: /app/packages/queue/src
-        - path: ../packages/shared/src
+        - path: ./packages/shared/src
           action: sync
           target: /app/packages/shared/src
 
   portal:
     build:
-      context: ..
+      context: .
       dockerfile: infra/Dockerfile.dev
     command: pnpm --filter @modulocate/portal-web dev
     depends_on:
       - backend
     develop:
       watch:
-        - path: ../apps/portal/src
+        - path: ./apps/portal/src
           action: sync
           target: /app/apps/portal/src
-        - path: ../packages/shared/src
+        - path: ./packages/shared/src
           action: sync
           target: /app/packages/shared/src
-        - path: ../packages/ui/src
+        - path: ./packages/ui/src
           action: sync
           target: /app/packages/ui/src
 
   vote:
     build:
-      context: ..
+      context: .
       dockerfile: infra/Dockerfile.dev
     command: pnpm --filter @modulocate/vote-web dev
     depends_on:
       - backend
     develop:
       watch:
-        - path: ../apps/vote/src
+        - path: ./apps/vote/src
           action: sync
           target: /app/apps/vote/src
-        - path: ../packages/shared/src
+        - path: ./packages/shared/src
           action: sync
           target: /app/packages/shared/src
-        - path: ../packages/ui/src
+        - path: ./packages/ui/src
           action: sync
           target: /app/packages/ui/src
 

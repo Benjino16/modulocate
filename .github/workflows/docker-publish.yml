@@ -3,7 +3,7 @@
 #
 # Triggers:
 # - push to main: rebuilds every service and pushes `:latest` + `:sha-<short
-#   sha>`, matching compose.prod.yaml's default (MODULOCATE_IMAGE_TAG=latest).
+#   sha>`, matching compose.yaml's default (MODULOCATE_IMAGE_TAG=latest).
 # - version tags (v1.2.3): additionally pushes `:1.2.3` and `:1.2` for
 #   pinned/rollback deploys via MODULOCATE_IMAGE_TAG.
 # - workflow_dispatch: manual rebuild (e.g. to repush after a GHCR issue).
@@ -29,7 +29,7 @@ jobs:
       fail-fast: false
       matrix:
         # Must match the Dockerfile.<service> names in infra/ and the
-        # ghcr.io/.../modulocate-<service> image names compose.prod.yaml
+        # ghcr.io/.../modulocate-<service> image names compose.yaml
         # expects.
         service: [backend, worker, portal, vote]
     steps:

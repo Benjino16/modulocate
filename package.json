@@ -7,12 +7,12 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "docker compose -f infra/compose.dev.yaml up --build --watch",
+    "dev": "docker compose -f compose.dev.yaml up --build --watch",
     "build": "turbo run build",
-    "db:push": "docker compose -f infra/compose.dev.yaml exec backend pnpm --filter @modulocate/db db:push",
-    "db:migrate": "docker compose -f infra/compose.dev.yaml exec backend pnpm --filter @modulocate/db db:migrate",
-    "db:seed": "docker compose -f infra/compose.dev.yaml exec backend pnpm --filter @modulocate/db db:seed",
-    "db:studio": "docker compose -f infra/compose.dev.yaml exec backend pnpm --filter @modulocate/db db:studio"
+    "db:push": "docker compose -f compose.dev.yaml exec backend pnpm --filter @modulocate/db db:push",
+    "db:migrate": "docker compose -f compose.dev.yaml exec backend pnpm --filter @modulocate/db db:migrate",
+    "db:seed": "docker compose -f compose.dev.yaml exec backend pnpm --filter @modulocate/db db:seed",
+    "db:studio": "docker compose -f compose.dev.yaml exec backend pnpm --filter @modulocate/db db:studio"
   },
   "devDependencies": {
     "esbuild": "^0.25.12",
