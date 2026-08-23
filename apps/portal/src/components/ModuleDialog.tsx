@@ -16,8 +16,10 @@ import { useTRPC } from "../trpc";
 type Module = {
   id: string;
   name: string;
+  description: string | null;
   teacher: string | null;
   scheduleLabel: string | null;
+  displayScheduleLabel: string | null;
   min: number;
   max: number;
   categoryIds: string[];
@@ -62,11 +64,13 @@ export function ModuleDialog({
   module,
   open,
   onOpenChange,
+  onDuplicated,
 }: {
   projectId: string;
   module?: Module;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onDuplicated?: (module: Module) => void;
 }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -134,21 +138,48 @@ export function ModuleDialog({
     }),
   );
 
-  const isPending = createModule.isPending || updateModule.isPending || removeModule.isPending;
+  // Bare mutations for the duplicate flow, deliberately without onSuccess —
+  // duplicating saves the current module, creates a copy, then swaps this
+  // same dialog over to the copy (handleDuplicate below), it never closes it
+  // the way a normal save/create does.
+  const duplicateSave = useMutation(trpc.modules.update.mutationOptions());
+  const duplicateCreate = useMutation(trpc.modules.create.mutationOptions());
+
+  const isPending =
+    createModule.isPending ||
+    updateModule.isPending ||
+    removeModule.isPending ||
+    duplicateSave.isPending ||
+    duplicateCreate.isPending;
+
+  function validateForm() {
+    setError(undefined);
+    const min = Number(form.min);
+    const max = Number(form.max);
+    if (!form.name.trim()) {
+      setError("Name wird benötigt.");
+      return null;
+    }
+    if (!Number.isInteger(min) || min < 0) {
+      setError("Min. Teilnehmer muss eine positive Zahl sein.");
+      return null;
+    }
+    if (!Number.isInteger(max) || max < 0) {
+      setError("Max. Teilnehmer muss eine positive Zahl sein.");
+      return null;
+    }
+    if (max < min) {
+      setError("Max. Teilnehmer muss größer oder gleich Min. sein.");
+      return null;
+    }
+    return { min, max, teacher: form.teacher.trim(), scheduleLabel: form.scheduleLabel.trim() };
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError(undefined);
-
-    const min = Number(form.min);
-    const max = Number(form.max);
-    if (!form.name.trim()) return setError("Name wird benötigt.");
-    if (!Number.isInteger(min) || min < 0) return setError("Min. Teilnehmer muss eine positive Zahl sein.");
-    if (!Number.isInteger(max) || max < 0) return setError("Max. Teilnehmer muss eine positive Zahl sein.");
-    if (max < min) return setError("Max. Teilnehmer muss größer oder gleich Min. sein.");
-
-    const teacher = form.teacher.trim();
-    const scheduleLabel = form.scheduleLabel.trim();
+    const validated = validateForm();
+    if (!validated) return;
+    const { min, max, teacher, scheduleLabel } = validated;
 
     if (module) {
       // Explicit null (not undefined) to clear — tRPC's JSON transport drops
@@ -176,6 +207,47 @@ export function ModuleDialog({
         categoryIds: form.categoryIds,
         dateIds: form.dateIds,
       });
+    }
+  }
+
+  async function handleDuplicate() {
+    if (!module) return;
+    const validated = validateForm();
+    if (!validated) return;
+    const { min, max, teacher, scheduleLabel } = validated;
+
+    try {
+      // Save the currently open module first, then copy its (now current)
+      // data into a new module — description included, even though this
+      // dialog doesn't edit it itself (that's ModuleContentDialog's job).
+      const saved = await duplicateSave.mutateAsync({
+        id: module.id,
+        projectId,
+        name: form.name.trim(),
+        teacher: teacher || null,
+        scheduleLabel: scheduleLabel || null,
+        min,
+        max,
+        categoryIds: form.categoryIds,
+        dateIds: form.dateIds,
+      });
+
+      const created = await duplicateCreate.mutateAsync({
+        projectId,
+        name: saved.name,
+        description: saved.description ?? undefined,
+        teacher: saved.teacher ?? undefined,
+        scheduleLabel: saved.scheduleLabel ?? undefined,
+        min: saved.min,
+        max: saved.max,
+        categoryIds: saved.categoryIds,
+        dateIds: saved.dateIds,
+      });
+
+      invalidateList();
+      onDuplicated?.(created);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Fehler beim Duplizieren.");
     }
   }
 
@@ -289,9 +361,16 @@ export function ModuleDialog({
             ) : (
               <span />
             )}
-            <Button type="submit" disabled={isPending}>
-              {module ? "Speichern" : "Modul anlegen"}
-            </Button>
+            <div className="flex gap-2">
+              {module && (
+                <Button type="button" variant="secondary" onClick={handleDuplicate} disabled={isPending}>
+                  Duplizieren
+                </Button>
+              )}
+              <Button type="submit" disabled={isPending}>
+                {module ? "Speichern" : "Modul anlegen"}
+              </Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>

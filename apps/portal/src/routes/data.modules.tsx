@@ -193,6 +193,7 @@ function ModulesPage() {
           module={settingsModule}
           open={settingsOpen}
           onOpenChange={setSettingsOpen}
+          onDuplicated={setSettingsModule}
         />
       )}
 
