@@ -5,7 +5,7 @@ import type { ModuleHeaderData } from "../types";
 const styles = StyleSheet.create({
   container: { marginBottom: 12 },
   title: { fontSize: 20, fontWeight: 700, marginBottom: 2 },
-  subtitle: { fontSize: 10, color: "#444444" },
+  subtitle: { fontSize: 14, color: "#222222" },
 });
 
 export function ModuleHeader({ title, teacher, scheduleLabel }: ModuleHeaderData) {
