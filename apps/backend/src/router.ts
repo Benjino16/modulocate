@@ -8,6 +8,7 @@ import { datesRouter } from "./routers/dates";
 import { rulesRouter } from "./routers/rules";
 import { studentGroupsRouter } from "./routers/studentGroups";
 import { mailRouter } from "./routers/mail";
+import { emailLogRouter } from "./routers/emailLog";
 import { voteAuthRouter } from "./routers/voteAuth";
 import { voteRouter } from "./routers/vote";
 import { allocationRunsRouter } from "./routers/allocationRuns";
@@ -26,6 +27,7 @@ export const appRouter = router({
   rules: rulesRouter,
   studentGroups: studentGroupsRouter,
   mail: mailRouter,
+  emailLog: emailLogRouter,
   voteAuth: voteAuthRouter,
   vote: voteRouter,
   allocationRuns: allocationRunsRouter,

@@ -20,6 +20,7 @@ const phases = [
   { to: "/allocation", number: 3, label: "Zuteilung" },
   { to: "/adjustments", number: 4, label: "Anpassungen" },
   { to: "/results", number: 5, label: "Ergebnisse" },
+  { to: "/audit", number: 6, label: "Audit" },
 ] as const;
 
 // Maps the project's backend phase to the sidebar step it belongs to.
