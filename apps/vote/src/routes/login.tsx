@@ -1,17 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
-import { Button } from "@modulocate/ui/components/button";
-import { Input } from "@modulocate/ui/components/input";
-import { Label } from "@modulocate/ui/components/label";
-import { markFreshLogin } from "../lib/freshLoginFlag";
+import { translateLoginError } from "../lib/voteErrors";
 import { useTRPC } from "../trpc";
 
-// The emailed vote link is /login?code=... (see
-// apps/worker/src/processors/votingInvite.ts) — this page both auto-consumes
-// that code and, since it never expires, doubles as the fallback page a
-// student can visit directly to type the code in by hand.
+// The emailed vote link is /login?code=... — this page auto-consumes that
+// code. There's no manual code-entry fallback anymore (see planning.md):
+// with no code at all, this is just the plain landing page a student
+// shouldn't normally ever see (bookmarked, typo'd, "/" redirect — see
+// routes/index.tsx); with a code that turns out not to work, it hands off
+// to /login-error instead of rendering inline here.
 export const Route = createFileRoute("/login")({
   validateSearch: z.object({ code: z.string().optional() }),
   component: LoginPage,
@@ -22,10 +21,6 @@ function LoginPage() {
   const navigate = useNavigate();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const [manualCode, setManualCode] = useState("");
-  // Starts true whenever a code arrives via the URL, so the spinner shows
-  // instead of the form until that one attempt resolves either way.
-  const [autoLoginInFlight, setAutoLoginInFlight] = useState(Boolean(code));
 
   const login = useMutation(
     trpc.voteAuth.login.mutationOptions({
@@ -37,24 +32,21 @@ function LoginPage() {
         queryClient.removeQueries({ queryKey: trpc.voteAuth.me.queryKey() });
         navigate({ to: "/vote" });
       },
-      onError: () => setAutoLoginInFlight(false),
+      onError: (error) => {
+        navigate({ to: "/login-error", search: { message: translateLoginError(error) } });
+      },
     }),
   );
 
   useEffect(() => {
     if (code) {
-      // Only the ?code=... auto-login counts as "opened the fresh link from
-      // the email" — the manual-entry fallback below is a lost-session
-      // recovery, not a first open, so it never sets this flag (see
-      // freshLoginFlag.ts and /vote's greeting/welcome/rule screens).
-      markFreshLogin();
       login.mutate({ code });
     }
     // Only ever run once per mount for the code the link arrived with.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (autoLoginInFlight) {
+  if (code) {
     return (
       <div className="flex flex-1 items-center justify-center">
         <p className="text-muted-foreground">Anmeldung läuft…</p>
@@ -63,52 +55,12 @@ function LoginPage() {
   }
 
   return (
-    <div className="flex flex-1 items-center justify-center p-6">
-      <div className="w-full max-w-sm space-y-4">
-        <div className="space-y-1 text-center">
-          <h1 className="text-2xl font-semibold">Modulwahl</h1>
-          <p className="text-sm text-muted-foreground">
-            Gib den Zugangscode aus deiner E-Mail ein, um zu deiner Wahl zu gelangen.
-          </p>
-        </div>
-
-        {code && (
-          <p className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-            Der Link ist ungültig. Bitte gib deinen Zugangscode manuell ein.
-          </p>
-        )}
-
-        <form
-          className="space-y-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            login.mutate({ code: manualCode.trim() });
-          }}
-        >
-          <div className="space-y-1.5">
-            <Label htmlFor="code">Zugangscode</Label>
-            <Input
-              id="code"
-              value={manualCode}
-              onChange={(e) => setManualCode(e.target.value)}
-              placeholder="z. B. AB12CD34"
-              autoFocus
-            />
-          </div>
-
-          {!code && login.isError && (
-            <p className="text-sm text-destructive">Ungültiger Code. Bitte überprüfe deine Eingabe.</p>
-          )}
-
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={login.isPending || manualCode.trim().length === 0}
-          >
-            {login.isPending ? "Wird geprüft…" : "Anmelden"}
-          </Button>
-        </form>
-      </div>
+    <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center gap-4 p-6 text-center">
+      <h1 className="text-4xl font-bold tracking-tight">MODULOCATE</h1>
+      <p className="text-muted-foreground">
+        Die Teilnahme an der Modulwahl ist nur über deinen persönlichen Einladungslink aus der E-Mail möglich.
+      </p>
+      <p className="text-sm text-muted-foreground">Bei Fragen oder Problemen melde dich bei deiner Schule.</p>
     </div>
   );
 }

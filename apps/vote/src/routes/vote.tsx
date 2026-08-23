@@ -23,10 +23,12 @@ import { GreetingScreen } from "../components/GreetingScreen";
 import { IntroScreen } from "../components/IntroScreen";
 import { ModuleInfoDialog } from "../components/ModuleInfoDialog";
 import { SortableModuleRow } from "../components/SortableModuleRow";
+import { SubmitResultDialog, type SubmitResult } from "../components/SubmitResultDialog";
 import { TutorialOverlay } from "../components/TutorialOverlay";
-import { clearFreshLoginFlag, hasFreshLoginFlag } from "../lib/freshLoginFlag";
+import { hasSeenIntro, markIntroSeen } from "../lib/introStorage";
 import { simulateOwnAllocation } from "../lib/simulateAllocation";
 import { hasSeenTutorial } from "../lib/tutorialStorage";
+import { translateSubmitError } from "../lib/voteErrors";
 import { trpcClient, useTRPC } from "../trpc";
 
 // Protected: redirects to the fallback login page if there's no valid
@@ -78,16 +80,23 @@ function VotePage() {
   const { data: welcomeText, isLoading: welcomeTextLoading } = useQuery(trpc.vote.welcomeText.queryOptions());
   type Module = (typeof modules)[number];
 
-  // The greeting + welcome/rule screens only ever show right after the
-  // student opens the fresh ?code=... link from their email (see
-  // freshLoginFlag.ts and login.tsx) — a revisit (reload, reopening the tab,
-  // the manual-code fallback) drops straight into the survey. Read once via
-  // a lazy initializer (pure, safe under StrictMode's double-invoke); the
-  // flag itself stays set in sessionStorage until the student actually
-  // reaches the survey (see the "reached the survey" effect below) — a
-  // reload while still on the greeting/welcome/rules screens must show them
-  // again, not jump straight to the survey.
-  const [showIntro] = useState(() => hasFreshLoginFlag());
+  // The greeting + welcome/rule screens show once per student — tracked in
+  // localStorage keyed by studentId (see lib/introStorage.ts), not tied to
+  // the browser session or tab. That's deliberate: a reload or a reopened
+  // link before the student ever reaches the survey must show them again
+  // (a session-only flag can't survive a browser restart, and the session
+  // cookie itself lasts 7 days — far longer), and a shared computer — e.g.
+  // a school computer room where students take the survey back to back on
+  // the same machine — must never let one student's progress skip or hide
+  // another's screens. Derived purely from data (no Effect needed): null
+  // until `student` is known; the "reached the survey" effect below is what
+  // marks it seen, and only fires once introStep has already been pinned to
+  // "survey" via introStepOverride (see below), so recomputing this after
+  // that point can't un-render anything still gated on it.
+  const showIntro = useMemo(() => {
+    if (!student) return null;
+    return !hasSeenIntro(student.studentId);
+  }, [student]);
 
   // The very first screen — "Hallo {Name}" with a start/logout choice —
   // shown as soon as `student` is known, deliberately not gated on the
@@ -113,14 +122,14 @@ function VotePage() {
 
   // Only now — greeting dismissed and past whichever of welcome/rules
   // applied — has the student actually reached the survey, so only now is
-  // the fresh-login flag consumed. Idempotent (clearFreshLoginFlag is a
-  // no-op once the key is gone), so re-running this on every render after
-  // that point is harmless.
+  // the intro marked seen for this student. Idempotent (markIntroSeen is a
+  // no-op once the key is already set), so re-running this on every render
+  // after that point is harmless.
   useEffect(() => {
-    if (showIntro && greetingDismissed && introStep === "survey") {
-      clearFreshLoginFlag();
+    if (showIntro && greetingDismissed && introStep === "survey" && student) {
+      markIntroSeen(student.studentId);
     }
-  }, [showIntro, greetingDismissed, introStep]);
+  }, [showIntro, greetingDismissed, introStep, student]);
 
   // Ranking starts from the student's saved preference order (ranked modules
   // first, in rank order), with any eligible-but-not-yet-ranked modules
@@ -145,12 +154,12 @@ function VotePage() {
   const [submittedOverride, setSubmittedOverride] = useState<string[] | null>(null);
   const cachedOrder = student ? (submittedOverride ?? readCachedOrder(student.studentId)) : null;
 
-  // Auto-opening the tutorial is tied to the same fresh-link condition as
-  // the greeting/welcome/rule screens (see showIntro above) — a revisit
-  // shouldn't replay it uninvited. Derived purely from data (no Effect
-  // needed): the help-icon button's manual reopen and the tutorial's own
-  // "done" callback (tutorialOverride below) always win over this
-  // recomputing.
+  // Auto-opening the tutorial is tied to the same per-student condition as
+  // the greeting/welcome/rule screens (see showIntro above) — a student who
+  // already finished the intro shouldn't have it replayed uninvited.
+  // Derived purely from data (no Effect needed): the help-icon button's
+  // manual reopen and the tutorial's own "done" callback (tutorialOverride
+  // below) always win over this recomputing.
   const autoTutorialOpen = useMemo(() => {
     if (!student) return null;
     return showIntro && !hasSeenTutorial(student.studentId);
@@ -173,6 +182,7 @@ function VotePage() {
     return new Set(result.assignments.map((a) => a.moduleId));
   }, [student, rule, modules, order]);
 
+  const [submitResult, setSubmitResult] = useState<SubmitResult | null>(null);
   const submit = useMutation(
     trpc.vote.submitPreferences.mutationOptions({
       onSuccess: (_result, variables) => {
@@ -181,6 +191,10 @@ function VotePage() {
           localStorage.setItem(cacheKey(student.studentId), JSON.stringify(variables.moduleIds));
           setSubmittedOverride(variables.moduleIds);
         }
+        setSubmitResult({ status: "success" });
+      },
+      onError: (error) => {
+        setSubmitResult({ status: "error", ...translateSubmitError(error) });
       },
     }),
   );
@@ -214,7 +228,7 @@ function VotePage() {
     setOrderOverride(arrayMove(order, oldIndex, newIndex));
   }
 
-  if (!student) {
+  if (!student || showIntro === null) {
     return (
       <div className="flex flex-1 items-center justify-center">
         <p className="text-muted-foreground">Wird geladen…</p>
@@ -316,12 +330,6 @@ function VotePage() {
         </DndContext>
       )}
 
-      {submit.isError && (
-        <p className="rounded-md bg-destructive/10 p-3 text-sm text-destructive" role="alert">
-          {submit.error.message}
-        </p>
-      )}
-
       <div className="fixed inset-x-0 bottom-0 z-40 flex justify-center border-t bg-background/95 p-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <Button
           size="lg"
@@ -347,6 +355,12 @@ function VotePage() {
       </div>
 
       <ModuleInfoDialog module={infoModule} onOpenChange={(open) => !open && setInfoModule(null)} />
+
+      <SubmitResultDialog
+        result={submitResult}
+        onOpenChange={(open) => !open && setSubmitResult(null)}
+        onLoginClick={() => navigate({ to: "/login" })}
+      />
 
       {student && tutorialOpen && (
         <TutorialOverlay studentId={student.studentId} onDone={() => setTutorialOverride(false)} />

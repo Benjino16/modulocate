@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
-import { db, students } from "@modulocate/db";
+import { db, students, projects } from "@modulocate/db";
+import { projectPhase } from "@modulocate/shared";
 import { router, publicProcedure } from "../trpc";
 import { STUDENT_SESSION_COOKIE, signStudentSession } from "../studentAuth";
 
@@ -28,6 +29,14 @@ export const voteAuthRouter = router({
       const [student] = await db.select().from(students).where(eq(students.signInCode, input.code));
       if (!student) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "Ungültiger Link." });
+      }
+
+      // signInCode never expires, so it stays usable across every phase the
+      // project passes through — only mint a session while voting is
+      // actually open.
+      const [project] = await db.select().from(projects).where(eq(projects.id, student.projectId));
+      if (!project || project.phase !== projectPhase.enum.voting) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Die Umfrage ist aktuell nicht offen." });
       }
 
       // First-open timestamp — only set once, so re-visiting the link on
