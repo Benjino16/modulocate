@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { Plus, Settings } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Plus, Settings, Download, Upload } from "lucide-react";
+import { moduleImportFile } from "@modulocate/shared";
 import { Button } from "@modulocate/ui/components/button";
 import { SearchFilterBar } from "@modulocate/ui/components/search-filter-bar";
 import { useListFilter, pruneEmpty, type FilterConfig } from "@modulocate/ui/lib/use-list-filter";
-import { useTRPC } from "../trpc";
+import { useTRPC, trpcClient } from "../trpc";
 import { useProject } from "../lib/project-context";
 import { ModuleDialog } from "../components/ModuleDialog";
 import { ModuleContentDialog } from "../components/ModuleContentDialog";
@@ -43,6 +44,7 @@ type Module = {
 
 function ModulesPage() {
   const trpc = useTRPC();
+  const queryClient = useQueryClient();
   const { projectId } = useProject();
   const navigate = Route.useNavigate();
   const { q = "", category = [], date = [] } = Route.useSearch();
@@ -102,6 +104,68 @@ function ModulesPage() {
   const [contentModule, setContentModule] = useState<Module | undefined>();
   const [contentOpen, setContentOpen] = useState(false);
 
+  const [isExporting, setIsExporting] = useState(false);
+  const [importExportError, setImportExportError] = useState<string | undefined>();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const importModules = useMutation(
+    trpc.modules.importBatch.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: trpc.modules.list.queryKey({ projectId: projectId! }) });
+      },
+      onError: (err) => setImportExportError(err.message),
+    }),
+  );
+
+  async function handleExport() {
+    if (!projectId) return;
+    setImportExportError(undefined);
+    setIsExporting(true);
+    try {
+      const data = await trpcClient.modules.exportAll.query({ projectId });
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `module-export-${new Date().toISOString().slice(0, 10)}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setImportExportError(err instanceof Error ? err.message : "Fehler beim Exportieren.");
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
+  function openImportPicker() {
+    setImportExportError(undefined);
+    fileInputRef.current?.click();
+  }
+
+  async function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    // Reset so selecting the same file again still fires onChange.
+    e.target.value = "";
+    if (!file || !projectId) return;
+
+    setImportExportError(undefined);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(await file.text());
+    } catch {
+      setImportExportError("Datei ist kein gültiges JSON.");
+      return;
+    }
+
+    const result = moduleImportFile.safeParse(parsed);
+    if (!result.success) {
+      setImportExportError("Datei entspricht nicht dem erwarteten Export-Format.");
+      return;
+    }
+
+    importModules.mutate({ ...result.data, projectId });
+  }
+
   function openCreate() {
     setSettingsModule(undefined);
     setSettingsOpen(true);
@@ -121,10 +185,37 @@ function ModulesPage() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Module</h2>
-        <Button size="sm" onClick={openCreate} disabled={!projectId}>
-          <Plus /> Neues Modul
-        </Button>
+        <div className="flex gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json"
+            className="hidden"
+            onChange={handleFileSelected}
+          />
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={openImportPicker}
+            disabled={!projectId || importModules.isPending}
+          >
+            <Upload /> Importieren
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={handleExport}
+            disabled={!projectId || !modules?.length || isExporting}
+          >
+            <Download /> Exportieren
+          </Button>
+          <Button size="sm" onClick={openCreate} disabled={!projectId}>
+            <Plus /> Neues Modul
+          </Button>
+        </div>
       </div>
+
+      {importExportError && <p className="text-sm text-destructive">{importExportError}</p>}
 
       {!isLoading && !!modules?.length && (
         <SearchFilterBar

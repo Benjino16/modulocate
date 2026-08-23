@@ -54,3 +54,37 @@ export const moduleUpdateInput = z.object({
 
 export type ModuleCreateInput = z.infer<typeof moduleCreateInput>;
 export type ModuleUpdateInput = z.infer<typeof moduleUpdateInput>;
+
+// Import/export file shape for the Data > Module bulk import/export feature.
+// Categories/dates are carried as plain name strings, not ids — they're
+// project-local relations, so a round-trip through a different project (or a
+// re-import after categories were renamed) resolves them by name instead of
+// an id that may not exist there. See modules.importBatch: an existing
+// category/date is matched by name (first match wins on duplicates), a
+// missing one is created.
+const moduleExportFields = z.object({
+  name: z.string().min(1),
+  description: z.string().nullable().optional(),
+  teacher: z.string().nullable().optional(),
+  scheduleLabel: z.string().nullable().optional(),
+  min: z.number().int().nonnegative(),
+  max: z.number().int().nonnegative(),
+  categoryNames: z.array(z.string().min(1)).default([]),
+  dateNames: z.array(z.string().min(1)).default([]),
+});
+
+export const moduleExportEntry = moduleExportFields.refine((data) => data.max >= data.min, {
+  message: "max must be >= min",
+  path: ["max"],
+});
+
+// version: 1 — bump on any breaking change to the entry shape so an older
+// export file can be rejected with a clear error instead of silently
+// misparsing.
+export const moduleImportFile = z.object({
+  version: z.literal(1),
+  modules: z.array(moduleExportEntry),
+});
+
+export type ModuleExportEntry = z.infer<typeof moduleExportEntry>;
+export type ModuleImportFile = z.infer<typeof moduleImportFile>;

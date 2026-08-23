@@ -2,12 +2,14 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { and, eq, inArray } from "drizzle-orm";
-import { moduleCreateInput, moduleUpdateInput } from "@modulocate/shared";
+import { moduleCreateInput, moduleUpdateInput, moduleImportFile } from "@modulocate/shared";
 import {
   db,
   modules,
   moduleInCategory,
   moduleInDate,
+  moduleCategories,
+  dates,
   studentInModule,
   students,
   rules,
@@ -170,6 +172,116 @@ export const modulesRouter = router({
       const [module] = await loadModules(db, input.projectId, [input.id]);
       if (!module) throw new TRPCError({ code: "NOT_FOUND" });
       return module;
+    }),
+
+  // Data > Module bulk export: the whole project's modules with categories/
+  // dates resolved to name strings (see moduleImportFile in @modulocate/shared
+  // for why) instead of the ids `list` returns. Round-trips through
+  // importBatch below.
+  exportAll: staffProcedure.input(projectScoped).query(async ({ input }) => {
+    const [moduleRows, categoryRows, dateRows] = await Promise.all([
+      loadModules(db, input.projectId),
+      db.select().from(moduleCategories).where(eq(moduleCategories.projectId, input.projectId)),
+      db.select().from(dates).where(eq(dates.projectId, input.projectId)),
+    ]);
+
+    const categoryNameById = new Map(categoryRows.map((category) => [category.id, category.name]));
+    const dateNameById = new Map(dateRows.map((date) => [date.id, date.name]));
+
+    return {
+      version: 1 as const,
+      modules: moduleRows.map((module) => ({
+        name: module.name,
+        description: module.description,
+        teacher: module.teacher,
+        scheduleLabel: module.scheduleLabel,
+        min: module.min,
+        max: module.max,
+        categoryNames: module.categoryIds.map((id) => categoryNameById.get(id)!).filter(Boolean),
+        dateNames: module.dateIds.map((id) => dateNameById.get(id)!).filter(Boolean),
+      })),
+    };
+  }),
+
+  // Data > Module bulk import: always creates new modules, never matches/
+  // updates an existing one by name (module name has no uniqueness
+  // constraint, so "same name" isn't a reliable identity — see planning
+  // discussion). Categories/dates are resolved by name: first existing match
+  // wins on a name collision, a name with no match gets created. One
+  // transaction for the whole file — a single invalid/failing module rolls
+  // back the entire import rather than leaving a partial result.
+  importBatch: staffProcedure
+    .input(moduleImportFile.and(projectScoped))
+    .mutation(async ({ input }) => {
+      return db.transaction(async (tx) => {
+        const [existingCategories, existingDates] = await Promise.all([
+          tx.select().from(moduleCategories).where(eq(moduleCategories.projectId, input.projectId)),
+          tx.select().from(dates).where(eq(dates.projectId, input.projectId)),
+        ]);
+
+        // First name wins on duplicates, matching the export/import name-
+        // conflict rule for categories and dates alike.
+        const categoryIdByName = new Map<string, string>();
+        for (const category of existingCategories) {
+          if (!categoryIdByName.has(category.name)) categoryIdByName.set(category.name, category.id);
+        }
+        const dateIdByName = new Map<string, string>();
+        for (const date of existingDates) {
+          if (!dateIdByName.has(date.name)) dateIdByName.set(date.name, date.id);
+        }
+
+        async function resolveCategoryId(name: string) {
+          const existingId = categoryIdByName.get(name);
+          if (existingId) return existingId;
+          const [created] = await tx.insert(moduleCategories).values({ projectId: input.projectId, name }).returning();
+          categoryIdByName.set(name, created.id);
+          return created.id;
+        }
+
+        async function resolveDateId(name: string) {
+          const existingId = dateIdByName.get(name);
+          if (existingId) return existingId;
+          const [created] = await tx.insert(dates).values({ projectId: input.projectId, name }).returning();
+          dateIdByName.set(name, created.id);
+          return created.id;
+        }
+
+        const createdIds: string[] = [];
+        for (const entry of input.modules) {
+          const categoryIds: string[] = [];
+          for (const name of entry.categoryNames) categoryIds.push(await resolveCategoryId(name));
+          const dateIds: string[] = [];
+          for (const name of entry.dateNames) dateIds.push(await resolveDateId(name));
+
+          const [module] = await tx
+            .insert(modules)
+            .values({
+              projectId: input.projectId,
+              permanentName: randomUUID(),
+              name: entry.name,
+              description: entry.description ? sanitizeRichText(entry.description) : null,
+              teacher: entry.teacher || null,
+              scheduleLabel: entry.scheduleLabel || null,
+              min: entry.min,
+              max: entry.max,
+            })
+            .returning();
+
+          if (categoryIds.length > 0) {
+            await tx.insert(moduleInCategory).values(
+              categoryIds.map((categoryId) => ({ moduleId: module.id, categoryId, projectId: input.projectId })),
+            );
+          }
+          if (dateIds.length > 0) {
+            await tx.insert(moduleInDate).values(
+              dateIds.map((dateId) => ({ moduleId: module.id, dateId, projectId: input.projectId })),
+            );
+          }
+          createdIds.push(module.id);
+        }
+
+        return loadModules(tx, input.projectId, createdIds);
+      });
     }),
 
   create: staffProcedure
