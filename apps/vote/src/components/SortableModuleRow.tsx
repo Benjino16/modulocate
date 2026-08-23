@@ -7,6 +7,7 @@ export function SortableModuleRow({
   module,
   rank,
   isPredicted,
+  isGap,
   onOpenInfo,
 }: {
   module: {
@@ -21,6 +22,11 @@ export function SortableModuleRow({
   // preview (see simulateAllocation.ts) — purely informational highlighting,
   // not a guarantee.
   isPredicted: boolean;
+  // This module is sandwiched between two predicted modules in the current
+  // ranking without being predicted itself (see vote.tsx's gapModuleIds) —
+  // flagged so the student notices it's blocking an otherwise-contiguous
+  // run of grantable choices.
+  isGap: boolean;
   onOpenInfo: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -44,6 +50,7 @@ export function SortableModuleRow({
         "flex items-center gap-3 rounded-md border bg-card p-3",
         isDragging && "relative z-10 shadow-lg",
         isPredicted && "border-primary/50 bg-primary/5",
+        isGap && "border-dashed border-destructive/70 bg-destructive/5",
       )}
     >
       <span

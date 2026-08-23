@@ -19,12 +19,14 @@ import {
 import { Check, HelpCircle, LogOut } from "lucide-react";
 import { Button } from "@modulocate/ui/components/button";
 import { cn } from "@modulocate/ui/lib/utils";
+import { GapWarningDialog } from "../components/GapWarningDialog";
 import { GreetingScreen } from "../components/GreetingScreen";
 import { IntroScreen } from "../components/IntroScreen";
 import { ModuleInfoDialog } from "../components/ModuleInfoDialog";
 import { SortableModuleRow } from "../components/SortableModuleRow";
 import { SubmitResultDialog, type SubmitResult } from "../components/SubmitResultDialog";
 import { TutorialOverlay } from "../components/TutorialOverlay";
+import { buildFirstVoteOrder } from "../lib/firstVoteOrder";
 import { hasSeenIntro, markIntroSeen } from "../lib/introStorage";
 import { simulateOwnAllocation } from "../lib/simulateAllocation";
 import { hasSeenTutorial } from "../lib/tutorialStorage";
@@ -133,18 +135,25 @@ function VotePage() {
 
   // Ranking starts from the student's saved preference order (ranked modules
   // first, in rank order), with any eligible-but-not-yet-ranked modules
-  // appended. Derived purely from data (no Effect needed): once the student
-  // starts dragging (orderOverride below, set from handleDragEnd), that
-  // local edit always wins over whatever this recomputes to afterward (e.g.
-  // a background refetch of `preferences`).
+  // appended. A student with no saved preferences yet (never submitted) gets
+  // a randomized order with allocation-engine-granted modules pulled to the
+  // top instead — see buildFirstVoteOrder — so they don't rank mutually
+  // exclusive/rule-conflicting modules highly only to lose them later.
+  // Derived purely from data (no Effect needed): once the student starts
+  // dragging (orderOverride below, set from handleDragEnd), that local edit
+  // always wins over whatever this recomputes to afterward (e.g. a
+  // background refetch of `preferences`).
   const baseOrder = useMemo<Module[] | null>(() => {
-    if (modulesLoading || preferencesLoading) return null;
+    if (modulesLoading || preferencesLoading || !student) return null;
+    if (preferences.length === 0) {
+      return buildFirstVoteOrder(student.studentId, modules, rule);
+    }
     const rankedIds = preferences.map((p) => p.moduleId);
     const byId = new Map(modules.map((m) => [m.id, m]));
     const ranked = rankedIds.map((id) => byId.get(id)).filter((m): m is Module => Boolean(m));
     const unranked = modules.filter((m) => !rankedIds.includes(m.id));
     return [...ranked, ...unranked];
-  }, [modules, preferences, modulesLoading, preferencesLoading]);
+  }, [modules, preferences, modulesLoading, preferencesLoading, student, rule]);
   const [orderOverride, setOrderOverride] = useState<Module[] | null>(null);
   const order = orderOverride ?? baseOrder;
 
@@ -182,7 +191,36 @@ function VotePage() {
     return new Set(result.assignments.map((a) => a.moduleId));
   }, [student, rule, modules, order]);
 
+  // Modules that sit *between* two predicted/grantable modules in the
+  // current ranking without being predicted themselves — i.e. the student's
+  // manual reordering has wedged a module the rule can't grant into what
+  // would otherwise be a contiguous run of grantable ones (see
+  // buildFirstVoteOrder's initial layout, which starts with no such gaps).
+  // A trailing run of non-predicted modules after the last predicted one
+  // doesn't count: nothing predicted follows it, so it isn't "blocking"
+  // anything the way a sandwiched module is.
+  const gapModuleIds = useMemo(() => {
+    const gaps = new Set<string>();
+    if (!order) return gaps;
+    let seenPredicted = false;
+    let pending: string[] = [];
+    for (const module of order) {
+      if (predictedModuleIds.has(module.id)) {
+        if (seenPredicted) for (const id of pending) gaps.add(id);
+        pending = [];
+        seenPredicted = true;
+      } else if (seenPredicted) {
+        pending.push(module.id);
+      }
+    }
+    return gaps;
+  }, [order, predictedModuleIds]);
+
   const [submitResult, setSubmitResult] = useState<SubmitResult | null>(null);
+  // Submitting with at least one gap module is allowed — the ranking is
+  // still just a wish — but gated behind an extra confirmation so the
+  // student notices before it's too late to reorder.
+  const [confirmingGapSubmit, setConfirmingGapSubmit] = useState(false);
   const submit = useMutation(
     trpc.vote.submitPreferences.mutationOptions({
       onSuccess: (_result, variables) => {
@@ -226,6 +264,19 @@ function VotePage() {
     const newIndex = order.findIndex((m) => m.id === over.id);
     if (oldIndex === -1 || newIndex === -1) return;
     setOrderOverride(arrayMove(order, oldIndex, newIndex));
+  }
+
+  function handleSubmitClick() {
+    if (gapModuleIds.size > 0) {
+      setConfirmingGapSubmit(true);
+      return;
+    }
+    submit.mutate({ moduleIds: currentIds });
+  }
+
+  function confirmGapSubmit() {
+    setConfirmingGapSubmit(false);
+    submit.mutate({ moduleIds: currentIds });
   }
 
   if (!student || showIntro === null) {
@@ -322,6 +373,7 @@ function VotePage() {
                   module={module}
                   rank={index + 1}
                   isPredicted={predictedModuleIds.has(module.id)}
+                  isGap={gapModuleIds.has(module.id)}
                   onOpenInfo={() => setInfoModule(module)}
                 />
               ))}
@@ -338,7 +390,7 @@ function VotePage() {
             alreadySubmitted && "bg-success text-success-foreground hover:bg-success/90",
           )}
           disabled={order.length === 0 || submit.isPending}
-          onClick={() => submit.mutate({ moduleIds: currentIds })}
+          onClick={handleSubmitClick}
         >
           {submit.isPending ? (
             "Wird gespeichert…"
@@ -355,6 +407,13 @@ function VotePage() {
       </div>
 
       <ModuleInfoDialog module={infoModule} onOpenChange={(open) => !open && setInfoModule(null)} />
+
+      <GapWarningDialog
+        open={confirmingGapSubmit}
+        moduleCount={rule?.moduleCount ?? 0}
+        onCancel={() => setConfirmingGapSubmit(false)}
+        onConfirm={confirmGapSubmit}
+      />
 
       <SubmitResultDialog
         result={submitResult}

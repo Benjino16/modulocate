@@ -54,6 +54,20 @@
   animation: tutorial-highlight-pulse 2s ease-in-out infinite;
 }
 
+@keyframes tutorial-gap-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklch, var(--color-destructive) 35%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 5px color-mix(in oklch, var(--color-destructive) 0%, transparent);
+  }
+}
+
+.tutorial-gap-pulse {
+  animation: tutorial-gap-pulse 2s ease-in-out infinite;
+}
+
 @keyframes tutorial-tap-ripple {
   0%,
   20% {

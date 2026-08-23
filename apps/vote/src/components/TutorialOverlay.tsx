@@ -6,12 +6,21 @@ import { cn } from "@modulocate/ui/lib/utils";
 import { markTutorialSeen } from "../lib/tutorialStorage";
 import "./tutorial-overlay.css";
 
-function MockRow({ highlighted, className }: { highlighted?: boolean; className?: string }) {
+function MockRow({
+  highlighted,
+  gap,
+  className,
+}: {
+  highlighted?: boolean;
+  gap?: boolean;
+  className?: string;
+}) {
   return (
     <div
       className={cn(
         "flex h-11 items-center gap-2 rounded-md border bg-card px-2.5 shadow-sm",
         highlighted && "border-primary/50 bg-primary/5",
+        gap && "border-dashed border-destructive/70 bg-destructive/5",
         className,
       )}
     >
@@ -49,6 +58,16 @@ function PredictedDemo() {
       <MockRow highlighted className="tutorial-highlight-pulse" />
       <MockRow highlighted className="tutorial-highlight-pulse [animation-delay:0.3s]" />
       <MockRow />
+    </div>
+  );
+}
+
+function GapDemo() {
+  return (
+    <div className="flex w-56 flex-col gap-2">
+      <MockRow highlighted className="tutorial-highlight-pulse" />
+      <MockRow gap className="tutorial-gap-pulse [animation-delay:0.3s]" />
+      <MockRow highlighted className="tutorial-highlight-pulse [animation-delay:0.6s]" />
     </div>
   );
 }
@@ -120,6 +139,11 @@ const steps: Step[] = [
     title: "Deine wahrscheinliche Wahl",
     text: "Module, die du mit dieser Reihenfolge aktuell bekommen würdest, werden hervorgehoben markiert.",
     Demo: PredictedDemo,
+  },
+  {
+    title: "Lücken im Ranking",
+    text: "Achte darauf, dass deine Top-Prioritäten regelkonform sind und sich nicht im Datum überschneiden. Fehler werden rot markiert.",
+    Demo: GapDemo,
   },
   {
     title: "Keine Garantie",
