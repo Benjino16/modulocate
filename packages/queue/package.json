@@ -10,12 +10,12 @@
   },
   "dependencies": {
     "@modulocate/allocation-engine": "workspace:*",
-    "bullmq": "^5.80.5",
-    "ioredis": "^5.11.1",
-    "zod": "^4.4.3"
+    "bullmq": "catalog:",
+    "ioredis": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
-    "@types/node": "^26.1.1",
-    "typescript": "^7.0.2"
+    "@types/node": "catalog:node",
+    "typescript": "catalog:node"
   }
 }

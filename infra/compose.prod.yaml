@@ -1,0 +1,138 @@
+name: modulocate
+
+# Production stack. Defaults to pulling pre-built images for backend/worker/
+# portal/vote from GHCR (see README.md at the repo root for the full deploy
+# walkthrough) — no toolchain, no local build, just `docker compose ... up`.
+# To build those four images from this checkout instead, layer
+# infra/compose.prod.build.yaml on top (see that file's own header).
+#
+# Usage (run from the repo root, so `.env` and `--env-file .env` line up):
+#   docker compose -f infra/compose.prod.yaml --env-file .env up -d
+# `--env-file` is required: without it, ${POSTGRES_USER}/${POSTGRES_PASSWORD}/
+# ${POSTGRES_DB} below resolve from infra/.env (this file's own directory,
+# Compose's default project directory), not the repo-root .env that
+# env_file: ../.env already reads for the containers themselves.
+#
+# MODULOCATE_IMAGE_REPO/MODULOCATE_IMAGE_TAG below pick which image to pull
+# per service — override in .env or on the command line (e.g. to roll back
+# to a previous tag, or point at a fork's GHCR namespace).
+#
+# Not handled here (deliberately out of scope for the image work itself):
+# - TLS: traefik only has a plain :80 entrypoint below. Needs a websecure
+#   entrypoint + ACME cert resolver (or TLS terminated upstream) before
+#   this is reachable from the public internet.
+# - Secrets: env_file: ../.env is the same mechanism as dev — fine for a
+#   single-box deploy, but the values in it (BETTER_AUTH_SECRET,
+#   STUDENT_SESSION_SECRET, POSTGRES_PASSWORD, SMTP credentials) must be
+#   real, per-environment secrets here, not the dev placeholders from
+#   .env.example.
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Fronts backend/portal/vote under one origin, same reasoning as dev (see
+  # infra/compose.dev.yaml) — same-origin cookies, no CORS. No dashboard here
+  # (dev's --api.insecure is dev-only, unauthenticated by design).
+  traefik:
+    image: traefik:v3.3
+    command:
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --entrypoints.web.address=:80
+    ports:
+      - "80:80"
+    volumes:
+      - ./traefik/dynamic.prod.yml:/etc/traefik/dynamic/dynamic.yml:ro
+    depends_on:
+      - backend
+      - portal
+      - vote
+    restart: unless-stopped
+
+  backend:
+    image: ${MODULOCATE_IMAGE_REPO:-ghcr.io/benjino16/modulocate}-backend:${MODULOCATE_IMAGE_TAG:-latest}
+    env_file: ../.env
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    image: ${MODULOCATE_IMAGE_REPO:-ghcr.io/benjino16/modulocate}-worker:${MODULOCATE_IMAGE_TAG:-latest}
+    env_file: ../.env
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  portal:
+    image: ${MODULOCATE_IMAGE_REPO:-ghcr.io/benjino16/modulocate}-portal:${MODULOCATE_IMAGE_TAG:-latest}
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  vote:
+    image: ${MODULOCATE_IMAGE_REPO:-ghcr.io/benjino16/modulocate}-vote:${MODULOCATE_IMAGE_TAG:-latest}
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # One-off migration runner, deliberately not part of `docker compose up`
+  # (kept behind the "migrate" profile) — a discrete deploy-time step, not
+  # app boot logic, so replicas never race each other applying the same
+  # schema change. Always builds from this checkout (target: build — the
+  # stage with the full pruned workspace + drizzle-kit installed) rather
+  # than pulling an image, even in the GHCR flow above: no dedicated
+  # "migrate" image is published, and the repo is already checked out
+  # locally anyway (this compose file lives in it). Run before rolling out
+  # a new backend/worker:
+  #   docker compose -f infra/compose.prod.yaml --env-file .env --profile migrate run --rm migrate
+  migrate:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.backend
+      target: build
+    command: pnpm --filter @modulocate/db db:migrate
+    env_file: ../.env
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles: ["migrate"]
+
+volumes:
+  postgres_data:
+  redis_data:

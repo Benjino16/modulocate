@@ -73,6 +73,6 @@ pnpm build                                        # turbo build across the works
 
 ## Troubleshooting
 
-- **Hot reload not picking up changes**: make sure you started with `pnpm dev`, not `docker compose up`. If containers are already running without watch, `docker compose -f infra/compose.yaml -f infra/compose.dev.yaml down` and restart with `pnpm dev`.
+- **Hot reload not picking up changes**: make sure you started with `pnpm dev`, not `docker compose up`. If containers are already running without watch, `docker compose -f infra/compose.dev.yaml down` and restart with `pnpm dev`.
 - **Changed a `package.json`/`vite.config.ts`/`tsconfig.json` and nothing happened**: expected — rerun `pnpm dev` to rebuild.
 - **`corepack enable` fails with `EACCES`, or `pnpm` throws `ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING`**: you're on a distro-packaged Node. Switch to nvm (see Prerequisites) — no more `sudo`, and a corepack version that matches pnpm 11.

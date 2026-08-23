@@ -7,7 +7,7 @@ import { router, publicProcedure } from "../trpc";
 import { STUDENT_SESSION_COOKIE, signStudentSession } from "../studentAuth";
 
 // vote-web and backend are same-origin behind Traefik
-// (http://modulocate.localhost, path-routed — see infra/compose.yaml), in
+// (http://modulocate.localhost, path-routed — see infra/compose.dev.yaml, infra/compose.prod.yaml), in
 // both dev and prod, so sameSite: "lax" is correct permanently, not just a
 // dev shortcut. secure stays false since this still runs over plain HTTP;
 // flip to true once real HTTPS termination is set up in front of Traefik.

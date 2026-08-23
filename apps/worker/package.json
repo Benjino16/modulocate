@@ -4,19 +4,24 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts"
+    "dev": "tsx watch src/index.ts",
+    "build": "node ../../infra/esbuild-build.mjs worker"
   },
   "dependencies": {
     "@modulocate/allocation-engine": "workspace:*",
     "@modulocate/db": "workspace:*",
     "@modulocate/mailer": "workspace:*",
     "@modulocate/queue": "workspace:*",
-    "bullmq": "^5.80.5",
-    "drizzle-orm": "^0.45.2"
+    "bullmq": "catalog:",
+    "drizzle-orm": "catalog:",
+    "ioredis": "catalog:",
+    "nodemailer": "catalog:",
+    "postgres": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
-    "@types/node": "^26.1.1",
-    "tsx": "^4.23.1",
-    "typescript": "^7.0.2"
+    "@types/node": "catalog:node",
+    "tsx": "catalog:",
+    "typescript": "catalog:node"
   }
 }

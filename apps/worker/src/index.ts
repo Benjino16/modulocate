@@ -1,3 +1,4 @@
+import { writeFileSync } from "node:fs";
 import { Worker, type Job } from "bullmq";
 import { and, eq, isNull } from "drizzle-orm";
 import {
@@ -134,6 +135,14 @@ const allocationWorker = new Worker(
 );
 
 console.log("[worker] listening on queues:", EMAIL_QUEUE_NAME, ALLOCATION_QUEUE_NAME);
+
+// No HTTP server to probe here (unlike backend), so Docker's HEALTHCHECK
+// (infra/Dockerfile.worker) watches this file's mtime instead — stale means
+// the event loop is stuck, not just "no jobs right now".
+const HEALTH_FILE = "/tmp/worker-healthy";
+const touchHealthFile = () => writeFileSync(HEALTH_FILE, "");
+touchHealthFile();
+setInterval(touchHealthFile, 15_000).unref();
 
 process.on("SIGTERM", async () => {
   await Promise.all([emailWorker.close(), allocationWorker.close()]);

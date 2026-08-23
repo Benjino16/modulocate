@@ -1,4 +1,4 @@
-# Static routing config for Traefik (infra/compose.yaml) — deliberately not
+# Static routing config for Traefik (infra/compose.dev.yaml) — deliberately not
 # using Traefik's Docker-label provider: the set of routed services here is
 # fixed (backend/portal/vote), so a plain file is simpler and doesn't need a
 # docker.sock mount into the Traefik container at all.

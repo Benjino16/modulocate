@@ -1,0 +1,59 @@
+# Prod counterpart to dynamic.yml — same path layout (backend/portal/vote
+# behind one origin), but portal/vote now point at the nginx-served static
+# builds (infra/Dockerfile.portal, infra/Dockerfile.vote) on port 8080
+# instead of the Vite dev server ports (5173/5174).
+#
+# Still no Host() match, same reasoning as dev: keeps this file usable
+# regardless of which hostname/IP actually reaches the box. Once there's a
+# real domain and TLS in front of this (not part of the Docker image work —
+# see infra/compose.prod.yaml), it's worth tightening the routers to
+# Host(`your-domain`) && PathPrefix(...) so a spoofed Host header can't get
+# routed at all.
+http:
+  routers:
+    backend:
+      rule: "PathPrefix(`/api`)"
+      service: backend
+    portal:
+      rule: "PathPrefix(`/portal`)"
+      service: portal
+      middlewares:
+        - add-trailing-slash-portal
+    vote:
+      rule: "PathPrefix(`/voting`)"
+      service: vote
+      middlewares:
+        - add-trailing-slash-vote
+    root:
+      rule: "Path(`/`)"
+      service: portal
+      middlewares:
+        - redirect-root
+
+  middlewares:
+    redirect-root:
+      redirectRegex:
+        regex: "^(https?://[^/]+)/$"
+        replacement: "${1}/portal/"
+    add-trailing-slash-portal:
+      redirectRegex:
+        regex: "^(https?://[^/]+)/portal$"
+        replacement: "${1}/portal/"
+    add-trailing-slash-vote:
+      redirectRegex:
+        regex: "^(https?://[^/]+)/voting$"
+        replacement: "${1}/voting/"
+
+  services:
+    backend:
+      loadBalancer:
+        servers:
+          - url: "http://backend:3000"
+    portal:
+      loadBalancer:
+        servers:
+          - url: "http://portal:8080"
+    vote:
+      loadBalancer:
+        servers:
+          - url: "http://vote:8080"

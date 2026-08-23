@@ -9,11 +9,11 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "nodemailer": "^9.0.3"
+    "nodemailer": "catalog:"
   },
   "devDependencies": {
-    "@types/node": "^26.1.1",
+    "@types/node": "catalog:node",
     "@types/nodemailer": "^8.0.1",
-    "typescript": "^7.0.2"
+    "typescript": "catalog:node"
   }
 }

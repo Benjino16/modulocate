@@ -22,7 +22,7 @@ export const Route = createFileRoute("/survey/students")({
 });
 
 // Portal and vote are same-origin behind Traefik (path-routed to /portal and
-// /voting — see infra/compose.yaml), so this can just use the page's own
+// /voting — see infra/compose.dev.yaml, infra/compose.prod.yaml), so this can just use the page's own
 // origin instead of hardcoding a host.
 const VOTE_APP_URL = `${window.location.origin}/voting`;
 

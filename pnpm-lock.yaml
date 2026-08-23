@@ -4,10 +4,117 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+catalogs:
+  default:
+    '@eslint/js':
+      specifier: ^10.0.1
+      version: 10.0.1
+    '@react-pdf/renderer':
+      specifier: ^4.5.1
+      version: 4.5.1
+    '@tailwindcss/vite':
+      specifier: ^4.3.2
+      version: 4.3.2
+    '@tanstack/react-query':
+      specifier: ^5.101.2
+      version: 5.101.2
+    '@tanstack/react-router':
+      specifier: ^1.170.18
+      version: 1.170.18
+    '@tanstack/react-router-devtools':
+      specifier: ^1.167.0
+      version: 1.167.0
+    '@tanstack/router-plugin':
+      specifier: ^1.168.20
+      version: 1.168.20
+    '@trpc/client':
+      specifier: ^11.18.0
+      version: 11.18.0
+    '@trpc/tanstack-react-query':
+      specifier: ^11.18.0
+      version: 11.18.0
+    '@types/react':
+      specifier: ^19.2.17
+      version: 19.2.17
+    '@types/react-dom':
+      specifier: ^19.2.3
+      version: 19.2.3
+    '@vitejs/plugin-react':
+      specifier: ^6.0.3
+      version: 6.0.3
+    better-auth:
+      specifier: ^1.6.25
+      version: 1.6.25
+    bullmq:
+      specifier: ^5.80.5
+      version: 5.80.5
+    drizzle-orm:
+      specifier: ^0.45.2
+      version: 0.45.2
+    eslint:
+      specifier: ^10.6.0
+      version: 10.7.0
+    eslint-plugin-react-hooks:
+      specifier: ^7.1.1
+      version: 7.1.1
+    eslint-plugin-react-refresh:
+      specifier: ^0.5.3
+      version: 0.5.3
+    globals:
+      specifier: ^17.7.0
+      version: 17.7.0
+    ioredis:
+      specifier: ^5.11.1
+      version: 5.11.1
+    lucide-react:
+      specifier: ^1.24.0
+      version: 1.24.0
+    nodemailer:
+      specifier: ^9.0.3
+      version: 9.0.3
+    postgres:
+      specifier: ^3.4.9
+      version: 3.4.9
+    react:
+      specifier: ^19.2.7
+      version: 19.2.7
+    react-dom:
+      specifier: ^19.2.7
+      version: 19.2.7
+    tsx:
+      specifier: ^4.23.1
+      version: 4.23.1
+    typescript-eslint:
+      specifier: ^8.62.0
+      version: 8.64.0
+    vite:
+      specifier: ^8.1.1
+      version: 8.1.4
+    zod:
+      specifier: ^4.4.3
+      version: 4.4.3
+  frontend:
+    '@types/node':
+      specifier: ^24.13.2
+      version: 24.13.3
+    typescript:
+      specifier: ~6.0.2
+      version: 6.0.3
+  node:
+    '@types/node':
+      specifier: ^26.1.1
+      version: 26.1.1
+    typescript:
+      specifier: ^7.0.2
+      version: 7.0.2
+
 importers:
 
   .:
     devDependencies:
+      esbuild:
+        specifier: ^0.25.12
+        version: 0.25.12
       turbo:
         specifier: ^2.10.5
         version: 2.10.5
@@ -35,42 +142,60 @@ importers:
       '@modulocate/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@react-pdf/renderer':
+        specifier: 'catalog:'
+        version: 4.5.1(react@19.2.7)
       '@trpc/server':
         specifier: ^11.18.0
         version: 11.18.0(typescript@7.0.2)
       better-auth:
-        specifier: ^1.6.25
+        specifier: 'catalog:'
         version: 1.6.25(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(kysely@0.29.4)(postgres@3.4.9))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vitest@3.2.7(@types/node@26.1.1)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.1))
+      bullmq:
+        specifier: 'catalog:'
+        version: 5.80.5
       drizzle-orm:
-        specifier: ^0.45.2
+        specifier: 'catalog:'
         version: 0.45.2(kysely@0.29.4)(postgres@3.4.9)
       fastify:
         specifier: ^5.10.0
         version: 5.10.0
+      ioredis:
+        specifier: 'catalog:'
+        version: 5.11.1
       jsonwebtoken:
         specifier: ^9.0.3
         version: 9.0.3
+      nodemailer:
+        specifier: 'catalog:'
+        version: 9.0.3
+      postgres:
+        specifier: 'catalog:'
+        version: 3.4.9
+      react:
+        specifier: 'catalog:'
+        version: 19.2.7
       sanitize-html:
         specifier: ^2.17.6
         version: 2.17.6
       zod:
-        specifier: ^4.4.3
+        specifier: 'catalog:'
         version: 4.4.3
     devDependencies:
       '@types/jsonwebtoken':
         specifier: ^9.0.10
         version: 9.0.10
       '@types/node':
-        specifier: ^26.1.1
+        specifier: catalog:node
         version: 26.1.1
       '@types/sanitize-html':
         specifier: ^2.16.1
         version: 2.16.1
       tsx:
-        specifier: ^4.23.1
+        specifier: 'catalog:'
         version: 4.23.1
       typescript:
-        specifier: ^7.0.2
+        specifier: catalog:node
         version: 7.0.2
 
   apps/portal:
@@ -82,77 +207,77 @@ importers:
         specifier: workspace:*
         version: link:../../packages/ui
       '@tailwindcss/vite':
-        specifier: ^4.3.2
+        specifier: 'catalog:'
         version: 4.3.2(vite@8.1.4(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1))
       '@tanstack/react-query':
-        specifier: ^5.101.2
+        specifier: 'catalog:'
         version: 5.101.2(react@19.2.7)
       '@tanstack/react-router':
-        specifier: ^1.170.18
+        specifier: 'catalog:'
         version: 1.170.18(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@tanstack/react-router-devtools':
-        specifier: ^1.167.0
+        specifier: 'catalog:'
         version: 1.167.0(@tanstack/react-router@1.170.18(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@tanstack/router-core@1.171.15)(csstype@3.2.3)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@trpc/client':
-        specifier: ^11.18.0
+        specifier: 'catalog:'
         version: 11.18.0(@trpc/server@11.18.0(typescript@6.0.3))(typescript@6.0.3)
       '@trpc/tanstack-react-query':
-        specifier: ^11.18.0
+        specifier: 'catalog:'
         version: 11.18.0(@tanstack/react-query@5.101.2(react@19.2.7))(@trpc/client@11.18.0(@trpc/server@11.18.0(typescript@6.0.3))(typescript@6.0.3))(@trpc/server@11.18.0(typescript@6.0.3))(react@19.2.7)(typescript@6.0.3)
       better-auth:
-        specifier: ^1.6.25
+        specifier: 'catalog:'
         version: 1.6.25(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(kysely@0.29.4)(postgres@3.4.9))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vitest@3.2.7(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.1))
       lucide-react:
-        specifier: ^1.24.0
+        specifier: 'catalog:'
         version: 1.24.0(react@19.2.7)
       react:
-        specifier: ^19.2.7
+        specifier: 'catalog:'
         version: 19.2.7
       react-dom:
-        specifier: ^19.2.7
+        specifier: 'catalog:'
         version: 19.2.7(react@19.2.7)
     devDependencies:
       '@eslint/js':
-        specifier: ^10.0.1
+        specifier: 'catalog:'
         version: 10.0.1(eslint@10.7.0(jiti@2.7.0))
       '@modulocate/backend':
         specifier: workspace:*
         version: link:../backend
       '@tanstack/router-plugin':
-        specifier: ^1.168.20
+        specifier: 'catalog:'
         version: 1.168.20(@tanstack/react-router@1.170.18(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(esbuild@0.28.1)(rolldown@1.1.5)(rollup@4.62.2)(vite@8.1.4(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1))
       '@types/node':
-        specifier: ^24.13.2
+        specifier: catalog:frontend
         version: 24.13.3
       '@types/react':
-        specifier: ^19.2.17
+        specifier: 'catalog:'
         version: 19.2.17
       '@types/react-dom':
-        specifier: ^19.2.3
+        specifier: 'catalog:'
         version: 19.2.3(@types/react@19.2.17)
       '@vitejs/plugin-react':
-        specifier: ^6.0.3
+        specifier: 'catalog:'
         version: 6.0.3(vite@8.1.4(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1))
       eslint:
-        specifier: ^10.6.0
+        specifier: 'catalog:'
         version: 10.7.0(jiti@2.7.0)
       eslint-plugin-react-hooks:
-        specifier: ^7.1.1
+        specifier: 'catalog:'
         version: 7.1.1(eslint@10.7.0(jiti@2.7.0))
       eslint-plugin-react-refresh:
-        specifier: ^0.5.3
+        specifier: 'catalog:'
         version: 0.5.3(eslint@10.7.0(jiti@2.7.0))
       globals:
-        specifier: ^17.7.0
+        specifier: 'catalog:'
         version: 17.7.0
       typescript:
-        specifier: ~6.0.2
+        specifier: catalog:frontend
         version: 6.0.3
       typescript-eslint:
-        specifier: ^8.62.0
+        specifier: 'catalog:'
         version: 8.64.0(eslint@10.7.0(jiti@2.7.0))(typescript@6.0.3)
       vite:
-        specifier: ^8.1.1
+        specifier: 'catalog:'
         version: 8.1.4(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)
 
   apps/vote:
@@ -176,77 +301,77 @@ importers:
         specifier: workspace:*
         version: link:../../packages/ui
       '@tailwindcss/vite':
-        specifier: ^4.3.2
+        specifier: 'catalog:'
         version: 4.3.2(vite@8.1.4(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1))
       '@tanstack/react-query':
-        specifier: ^5.101.2
+        specifier: 'catalog:'
         version: 5.101.2(react@19.2.7)
       '@tanstack/react-router':
-        specifier: ^1.170.18
+        specifier: 'catalog:'
         version: 1.170.18(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@tanstack/react-router-devtools':
-        specifier: ^1.167.0
+        specifier: 'catalog:'
         version: 1.167.0(@tanstack/react-router@1.170.18(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@tanstack/router-core@1.171.15)(csstype@3.2.3)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@trpc/client':
-        specifier: ^11.18.0
+        specifier: 'catalog:'
         version: 11.18.0(@trpc/server@11.18.0(typescript@6.0.3))(typescript@6.0.3)
       '@trpc/tanstack-react-query':
-        specifier: ^11.18.0
+        specifier: 'catalog:'
         version: 11.18.0(@tanstack/react-query@5.101.2(react@19.2.7))(@trpc/client@11.18.0(@trpc/server@11.18.0(typescript@6.0.3))(typescript@6.0.3))(@trpc/server@11.18.0(typescript@6.0.3))(react@19.2.7)(typescript@6.0.3)
       lucide-react:
-        specifier: ^1.24.0
+        specifier: 'catalog:'
         version: 1.24.0(react@19.2.7)
       react:
-        specifier: ^19.2.7
+        specifier: 'catalog:'
         version: 19.2.7
       react-dom:
-        specifier: ^19.2.7
+        specifier: 'catalog:'
         version: 19.2.7(react@19.2.7)
       zod:
-        specifier: ^4.4.3
+        specifier: 'catalog:'
         version: 4.4.3
     devDependencies:
       '@eslint/js':
-        specifier: ^10.0.1
+        specifier: 'catalog:'
         version: 10.0.1(eslint@10.7.0(jiti@2.7.0))
       '@modulocate/backend':
         specifier: workspace:*
         version: link:../backend
       '@tanstack/router-plugin':
-        specifier: ^1.168.20
+        specifier: 'catalog:'
         version: 1.168.20(@tanstack/react-router@1.170.18(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(esbuild@0.28.1)(rolldown@1.1.5)(rollup@4.62.2)(vite@8.1.4(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1))
       '@types/node':
-        specifier: ^24.13.2
+        specifier: catalog:frontend
         version: 24.13.3
       '@types/react':
-        specifier: ^19.2.17
+        specifier: 'catalog:'
         version: 19.2.17
       '@types/react-dom':
-        specifier: ^19.2.3
+        specifier: 'catalog:'
         version: 19.2.3(@types/react@19.2.17)
       '@vitejs/plugin-react':
-        specifier: ^6.0.3
+        specifier: 'catalog:'
         version: 6.0.3(vite@8.1.4(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1))
       eslint:
-        specifier: ^10.6.0
+        specifier: 'catalog:'
         version: 10.7.0(jiti@2.7.0)
       eslint-plugin-react-hooks:
-        specifier: ^7.1.1
+        specifier: 'catalog:'
         version: 7.1.1(eslint@10.7.0(jiti@2.7.0))
       eslint-plugin-react-refresh:
-        specifier: ^0.5.3
+        specifier: 'catalog:'
         version: 0.5.3(eslint@10.7.0(jiti@2.7.0))
       globals:
-        specifier: ^17.7.0
+        specifier: 'catalog:'
         version: 17.7.0
       typescript:
-        specifier: ~6.0.2
+        specifier: catalog:frontend
         version: 6.0.3
       typescript-eslint:
-        specifier: ^8.62.0
+        specifier: 'catalog:'
         version: 8.64.0(eslint@10.7.0(jiti@2.7.0))(typescript@6.0.3)
       vite:
-        specifier: ^8.1.1
+        specifier: 'catalog:'
         version: 8.1.4(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)
 
   apps/worker:
@@ -264,26 +389,38 @@ importers:
         specifier: workspace:*
         version: link:../../packages/queue
       bullmq:
-        specifier: ^5.80.5
+        specifier: 'catalog:'
         version: 5.80.5
       drizzle-orm:
-        specifier: ^0.45.2
+        specifier: 'catalog:'
         version: 0.45.2(kysely@0.29.4)(postgres@3.4.9)
+      ioredis:
+        specifier: 'catalog:'
+        version: 5.11.1
+      nodemailer:
+        specifier: 'catalog:'
+        version: 9.0.3
+      postgres:
+        specifier: 'catalog:'
+        version: 3.4.9
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
     devDependencies:
       '@types/node':
-        specifier: ^26.1.1
+        specifier: catalog:node
         version: 26.1.1
       tsx:
-        specifier: ^4.23.1
+        specifier: 'catalog:'
         version: 4.23.1
       typescript:
-        specifier: ^7.0.2
+        specifier: catalog:node
         version: 7.0.2
 
   packages/allocation-engine:
     devDependencies:
       typescript:
-        specifier: ^7.0.2
+        specifier: catalog:node
         version: 7.0.2
       vitest:
         specifier: ^3.2.4
@@ -298,61 +435,61 @@ importers:
         specifier: workspace:*
         version: link:../shared
       drizzle-orm:
-        specifier: ^0.45.2
+        specifier: 'catalog:'
         version: 0.45.2(kysely@0.29.4)(postgres@3.4.9)
       postgres:
-        specifier: ^3.4.9
+        specifier: 'catalog:'
         version: 3.4.9
     devDependencies:
       '@faker-js/faker':
         specifier: ^9.9.0
         version: 9.9.0
       '@types/node':
-        specifier: ^26.1.1
+        specifier: catalog:node
         version: 26.1.1
       drizzle-kit:
         specifier: ^0.31.10
         version: 0.31.10
       tsx:
-        specifier: ^4.23.1
+        specifier: 'catalog:'
         version: 4.23.1
       typescript:
-        specifier: ^7.0.2
+        specifier: catalog:node
         version: 7.0.2
 
   packages/mailer:
     dependencies:
       nodemailer:
-        specifier: ^9.0.3
+        specifier: 'catalog:'
         version: 9.0.3
     devDependencies:
       '@types/node':
-        specifier: ^26.1.1
+        specifier: catalog:node
         version: 26.1.1
       '@types/nodemailer':
         specifier: ^8.0.1
         version: 8.0.1
       typescript:
-        specifier: ^7.0.2
+        specifier: catalog:node
         version: 7.0.2
 
   packages/pdf-export:
     dependencies:
       '@react-pdf/renderer':
-        specifier: ^4.5.1
+        specifier: 'catalog:'
         version: 4.5.1(react@19.2.7)
       react:
-        specifier: ^19.2.7
+        specifier: 'catalog:'
         version: 19.2.7
     devDependencies:
       '@types/node':
-        specifier: ^26.1.1
+        specifier: catalog:node
         version: 26.1.1
       '@types/react':
-        specifier: ^19.2.17
+        specifier: 'catalog:'
         version: 19.2.17
       typescript:
-        specifier: ^7.0.2
+        specifier: catalog:node
         version: 7.0.2
 
   packages/queue:
@@ -361,36 +498,36 @@ importers:
         specifier: workspace:*
         version: link:../allocation-engine
       bullmq:
-        specifier: ^5.80.5
+        specifier: 'catalog:'
         version: 5.80.5
       ioredis:
-        specifier: ^5.11.1
+        specifier: 'catalog:'
         version: 5.11.1
       zod:
-        specifier: ^4.4.3
+        specifier: 'catalog:'
         version: 4.4.3
     devDependencies:
       '@types/node':
-        specifier: ^26.1.1
+        specifier: catalog:node
         version: 26.1.1
       typescript:
-        specifier: ^7.0.2
+        specifier: catalog:node
         version: 7.0.2
 
   packages/shared:
     dependencies:
       zod:
-        specifier: ^4.4.3
+        specifier: 'catalog:'
         version: 4.4.3
     devDependencies:
       typescript:
-        specifier: ^7.0.2
+        specifier: catalog:node
         version: 7.0.2
 
   packages/ui:
     dependencies:
       '@tailwindcss/vite':
-        specifier: ^4.3.2
+        specifier: 'catalog:'
         version: 4.3.2(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1))
       '@tiptap/extension-underline':
         specifier: ^3.28.0
@@ -411,7 +548,7 @@ importers:
         specifier: ^3.0.1
         version: 3.0.1
       lucide-react:
-        specifier: ^1.24.0
+        specifier: 'catalog:'
         version: 1.24.0(react@19.2.7)
       radix-ui:
         specifier: ^1.6.2
@@ -427,16 +564,16 @@ importers:
         version: 2.8.1
     devDependencies:
       '@types/react':
-        specifier: ^19.2.17
+        specifier: 'catalog:'
         version: 19.2.17
       '@types/react-dom':
-        specifier: ^19.2.3
+        specifier: 'catalog:'
         version: 19.2.3(@types/react@19.2.17)
       react:
-        specifier: ^19.2.7
+        specifier: 'catalog:'
         version: 19.2.7
       react-dom:
-        specifier: ^19.2.7
+        specifier: 'catalog:'
         version: 19.2.7(react@19.2.7)
 
 packages:

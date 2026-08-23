@@ -1,9 +1,11 @@
-# Hot-reload overlay on top of compose.yaml — uses Docker Compose Watch
-# (develop.watch) instead of hand-rolled bind mounts. src/ changes get
-# synced straight into the running container (no node_modules-shadowing
-# concern, since this is a one-way sync on change, not a persistent mount).
+name: modulocate
+
+# Local dev stack. Uses Docker Compose Watch (develop.watch) for hot reload
+# instead of hand-rolled bind mounts. src/ changes get synced straight into
+# the running container (no node_modules-shadowing concern, since this is a
+# one-way sync on change, not a persistent mount).
 #
-# Only `action: sync` is used here, deliberately not `rebuild`: tried
+# Only `action: sync` is used, deliberately not `rebuild`: tried
 # rebuild-on-package.json-change first, but in this Docker/Compose
 # combination `docker compose watch`'s rebuild goes through buildx bake
 # with the *whole* compose file, not just the triggering service — building
@@ -11,14 +13,46 @@
 # never restarted (reproduced twice, isolating each service into its own
 # Dockerfile didn't help). A silently-dead unrelated service is worse than
 # the alternative, so: editing package.json/vite.config.ts/tsconfig.json
-# needs a manual `docker compose -f infra/compose.yaml -f
-# infra/compose.dev.yaml up --build` for now.
+# needs a manual `docker compose -f infra/compose.dev.yaml up --build` for
+# now.
 #
-# Usage: docker compose -f infra/compose.yaml -f infra/compose.dev.yaml watch
+# Usage: docker compose -f infra/compose.dev.yaml watch
 # (or `up --watch` to start + watch in one command)
+#
+# Not shared with infra/compose.prod.yaml — prod uses its own Dockerfiles
+# (multi-stage, compiled output) and its own restart/networking posture, so
+# there's nothing here worth inheriting there.
 services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: modulocate
+      POSTGRES_PASSWORD: modulocate
+      POSTGRES_DB: modulocate
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U modulocate"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   # Dev-only fake SMTP catcher — real deploys use whatever SMTP_HOST is set
-  # in .env, so this stays out of the base compose.yaml.
+  # in .env.
   mailpit:
     image: axllent/mailpit:latest
     ports:
@@ -30,9 +64,46 @@ services:
       MP_MAX_MESSAGES: 5000
       MP_DATABASE: /data/mailpit.db
 
+  # Fronts backend/portal/vote under one origin (http://modulocate.localhost)
+  # so staff/student session cookies and tRPC calls are all same-origin — no
+  # CORS or cross-origin cookie config needed, in dev or prod (prod runs
+  # behind Traefik with this exact same path layout). Routing is a static
+  # file (infra/traefik/dynamic.yml), not the Docker-label provider — the
+  # set of routed services is fixed, so this avoids depending on
+  # container↔daemon API compatibility just to read labels.
+  traefik:
+    image: traefik:v3.3
+    command:
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
+      - --entrypoints.web.address=:80
+      - --api.insecure=true # dev-only dashboard, no auth
+    ports:
+      - "80:80"
+      - "8080:8080" # dashboard: http://localhost:8080
+    volumes:
+      - ./traefik/dynamic.yml:/etc/traefik/dynamic/dynamic.yml:ro
+    depends_on:
+      - backend
+      - portal
+      - vote
+
   backend:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.dev
+    command: pnpm --filter @modulocate/backend dev
+    env_file: ../.env
     environment:
+      DATABASE_URL: postgres://modulocate:modulocate@postgres:5432/modulocate
+      REDIS_URL: redis://redis:6379
+      BETTER_AUTH_URL: http://modulocate.localhost
       SMTP_HOST: mailpit
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     develop:
       watch:
         - path: ../apps/backend/src
@@ -58,8 +129,21 @@ services:
           target: /app/packages/shared/src
 
   worker:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.dev
+    command: pnpm --filter @modulocate/worker dev
+    env_file: ../.env
     environment:
+      DATABASE_URL: postgres://modulocate:modulocate@postgres:5432/modulocate
+      REDIS_URL: redis://redis:6379
+      VOTE_APP_URL: http://modulocate.localhost/voting
       SMTP_HOST: mailpit
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     develop:
       watch:
         - path: ../apps/worker/src
@@ -82,6 +166,12 @@ services:
           target: /app/packages/shared/src
 
   portal:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.dev
+    command: pnpm --filter @modulocate/portal-web dev
+    depends_on:
+      - backend
     develop:
       watch:
         - path: ../apps/portal/src
@@ -95,6 +185,12 @@ services:
           target: /app/packages/ui/src
 
   vote:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.dev
+    command: pnpm --filter @modulocate/vote-web dev
+    depends_on:
+      - backend
     develop:
       watch:
         - path: ../apps/vote/src
@@ -108,4 +204,6 @@ services:
           target: /app/packages/ui/src
 
 volumes:
+  postgres_data:
+  redis_data:
   mailpit_data:

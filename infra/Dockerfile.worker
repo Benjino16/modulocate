@@ -1,0 +1,44 @@
+# Production image for @modulocate/worker — same shape as
+# infra/Dockerfile.backend, see the comment there for why the esbuild-bundle
+# + turbo-prune + pnpm-deploy combination is needed at all.
+FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS base
+RUN corepack enable
+WORKDIR /app
+
+# ---- prune: isolate just the workspace subset @modulocate/worker needs ----
+FROM base AS pruner
+RUN npm install -g turbo@2
+COPY . .
+RUN turbo prune @modulocate/worker --docker
+
+# ---- install (cached unless deps change) + build ----
+FROM base AS build
+COPY --from=pruner /app/out/json/ .
+RUN pnpm install --frozen-lockfile
+COPY --from=pruner /app/out/full/ .
+# turbo prune only copies workspace packages (apps/*, packages/*) — this repo-
+# level build tool lives outside that graph, so it needs its own explicit COPY.
+COPY infra/esbuild-build.mjs infra/esbuild-build.mjs
+RUN pnpm --filter @modulocate/worker build
+
+# ---- prod-only dependency tree ----
+FROM build AS deploy
+RUN pnpm --filter @modulocate/worker deploy --prod --legacy /prod/worker
+
+# ---- runtime ----
+FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS runtime
+RUN apk add --no-cache tini
+RUN addgroup -S app && adduser -S app -G app
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=deploy --chown=app:app /prod/worker/node_modules ./node_modules
+COPY --from=deploy --chown=app:app /prod/worker/package.json ./package.json
+COPY --from=build --chown=app:app /app/apps/worker/dist ./dist
+USER app
+# No HTTP server here — the worker touches /tmp/worker-healthy on a timer
+# (apps/worker/src/index.ts), so a stale file means the event loop is stuck,
+# not just "no jobs queued right now".
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD find /tmp/worker-healthy -mmin -1 2>/dev/null | grep -q . || exit 1
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["node", "dist/index.js"]

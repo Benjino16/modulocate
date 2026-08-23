@@ -9,12 +9,12 @@
     ".": "./src/index.tsx"
   },
   "dependencies": {
-    "@react-pdf/renderer": "^4.5.1",
-    "react": "^19.2.7"
+    "@react-pdf/renderer": "catalog:",
+    "react": "catalog:"
   },
   "devDependencies": {
-    "@types/node": "^26.1.1",
-    "@types/react": "^19.2.17",
-    "typescript": "^7.0.2"
+    "@types/node": "catalog:node",
+    "@types/react": "catalog:",
+    "typescript": "catalog:node"
   }
 }

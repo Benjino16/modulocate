@@ -9,14 +9,14 @@
     "./components/*": "./src/components/*.tsx"
   },
   "dependencies": {
-    "@tailwindcss/vite": "^4.3.2",
+    "@tailwindcss/vite": "catalog:",
     "@tiptap/extension-underline": "^3.28.0",
     "@tiptap/react": "^3.28.0",
     "@tiptap/starter-kit": "^3.28.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "is-odd": "^3.0.1",
-    "lucide-react": "^1.24.0",
+    "lucide-react": "catalog:",
     "radix-ui": "^1.6.2",
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "^4.3.2",
@@ -27,9 +27,9 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:"
   }
 }

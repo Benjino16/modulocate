@@ -13,7 +13,7 @@
     "test:watch": "vitest"
   },
   "devDependencies": {
-    "typescript": "^7.0.2",
+    "typescript": "catalog:node",
     "vitest": "^3.2.4"
   }
 }

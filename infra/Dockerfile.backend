@@ -1,0 +1,51 @@
+# Production image for @modulocate/backend.
+#
+# backend/worker ship no compiled JS of their own (dev runs "tsx watch
+# src/index.ts" straight off TS source, and every @modulocate/* package
+# exports raw .ts — see infra/esbuild-build.mjs for why). This Dockerfile
+# bundles the app with esbuild into a single dist/index.js, then uses
+# `turbo prune` + `pnpm deploy` to ship only that file plus a correctly
+# resolved production node_modules tree — no pnpm, no workspace source, no
+# devDependencies in the final image.
+FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS base
+RUN corepack enable
+WORKDIR /app
+
+# ---- prune: isolate just the workspace subset @modulocate/backend needs ----
+FROM base AS pruner
+# turbo itself only needs to read package.json/lockfile/turbo.json — kept as
+# a plain global install here (not the repo's pnpm-managed devDependency) so
+# this stage doesn't need a full `pnpm install` just to prune.
+RUN npm install -g turbo@2
+COPY . .
+RUN turbo prune @modulocate/backend --docker
+
+# ---- install (cached unless deps change) + build ----
+FROM base AS build
+COPY --from=pruner /app/out/json/ .
+RUN pnpm install --frozen-lockfile
+COPY --from=pruner /app/out/full/ .
+# turbo prune only copies workspace packages (apps/*, packages/*) — this repo-
+# level build tool lives outside that graph, so it needs its own explicit COPY.
+COPY infra/esbuild-build.mjs infra/esbuild-build.mjs
+RUN pnpm --filter @modulocate/backend build
+
+# ---- prod-only dependency tree (pnpm's own tool for exactly this) ----
+FROM build AS deploy
+RUN pnpm --filter @modulocate/backend deploy --prod --legacy /prod/backend
+
+# ---- runtime: nothing but node, the bundle, and its prod node_modules ----
+FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS runtime
+RUN apk add --no-cache tini
+RUN addgroup -S app && adduser -S app -G app
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=deploy --chown=app:app /prod/backend/node_modules ./node_modules
+COPY --from=deploy --chown=app:app /prod/backend/package.json ./package.json
+COPY --from=build --chown=app:app /app/apps/backend/dist ./dist
+USER app
+EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:3000/healthz || exit 1
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["node", "dist/index.js"]

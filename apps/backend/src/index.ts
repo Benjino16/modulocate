@@ -9,10 +9,14 @@ import { registerExportRoutes } from "./routes/exports";
 
 const server = Fastify({ logger: true });
 
+// Plain REST endpoint (not tRPC) so Docker HEALTHCHECK / load balancer probes
+// can hit it with a bare GET and no tRPC batching envelope.
+server.get("/healthz", async () => ({ status: "ok" }));
+
 // No CORS needed: backend, portal and vote all live behind Traefik under one
 // origin (http://modulocate.localhost, path-routed to /api, /portal,
 // /voting), so every request — including the student session cookie and the
-// better-auth session cookie — is same-origin. See infra/compose.yaml.
+// better-auth session cookie — is same-origin. See infra/compose.dev.yaml, infra/compose.prod.yaml.
 await server.register(cookie);
 
 // better-auth's own fetch-Request handler, bridged onto Fastify. Reuses
@@ -60,4 +64,11 @@ server.listen({ port: 3000, host: "0.0.0.0" }, (err) => {
     server.log.error(err);
     process.exit(1);
   }
+});
+
+// Graceful shutdown for rolling deploys — lets in-flight requests finish
+// instead of dropping them when the container is stopped.
+process.on("SIGTERM", async () => {
+  await server.close();
+  process.exit(0);
 });
