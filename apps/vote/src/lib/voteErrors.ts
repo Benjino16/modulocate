@@ -44,3 +44,14 @@ export function translateSubmitError(error: VoteApiError): TranslatedError {
 export function translateLoginError(error: VoteApiError): string {
   return backendMessageOrFallback(error);
 }
+
+// The vote page's own queries (eligibleModules/myPreferences/welcomeText)
+// are gated by protectedStudentProcedure, which answers with
+// PRECONDITION_FAILED the moment the election closes — even though the
+// session cookie itself (checked separately via voteAuth.me, a public
+// procedure) is still perfectly valid. That's a definitive server answer,
+// not a transient hiccup, so retrying it can only delay the inevitable —
+// see the `retry` option on those queries in routes/vote.tsx.
+export function shouldRetryVoteQuery(failureCount: number, error: VoteApiError): boolean {
+  return !error.data?.code && failureCount < 2;
+}

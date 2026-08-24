@@ -30,7 +30,7 @@ import { buildFirstVoteOrder } from "../lib/firstVoteOrder";
 import { hasSeenIntro, markIntroSeen } from "../lib/introStorage";
 import { simulateOwnAllocation } from "../lib/simulateAllocation";
 import { hasSeenTutorial } from "../lib/tutorialStorage";
-import { translateSubmitError } from "../lib/voteErrors";
+import { shouldRetryVoteQuery, translateLoginError, translateSubmitError } from "../lib/voteErrors";
 import { trpcClient, useTRPC } from "../trpc";
 
 // Protected: redirects to the fallback login page if there's no valid
@@ -71,16 +71,42 @@ function VotePage() {
   const queryClient = useQueryClient();
 
   const { data: student } = useQuery(trpc.voteAuth.me.queryOptions());
-  const { data: eligibleData, isLoading: modulesLoading } = useQuery(trpc.vote.eligibleModules.queryOptions());
+  const {
+    data: eligibleData,
+    isLoading: modulesLoading,
+    error: modulesError,
+  } = useQuery({ ...trpc.vote.eligibleModules.queryOptions(), retry: shouldRetryVoteQuery });
   // Stable identity across renders (not a fresh `?? []` array each time) so
   // effects/memos keyed on it don't fire spuriously.
   const modules = useMemo(() => eligibleData?.modules ?? [], [eligibleData]);
   const rule = eligibleData?.rule ?? null;
-  const { data: preferences = [], isLoading: preferencesLoading } = useQuery(
-    trpc.vote.myPreferences.queryOptions(),
-  );
-  const { data: welcomeText, isLoading: welcomeTextLoading } = useQuery(trpc.vote.welcomeText.queryOptions());
+  const {
+    data: preferences = [],
+    isLoading: preferencesLoading,
+    error: preferencesError,
+  } = useQuery({ ...trpc.vote.myPreferences.queryOptions(), retry: shouldRetryVoteQuery });
+  const {
+    data: welcomeText,
+    isLoading: welcomeTextLoading,
+    error: welcomeTextError,
+  } = useQuery({ ...trpc.vote.welcomeText.queryOptions(), retry: shouldRetryVoteQuery });
   type Module = (typeof modules)[number];
+
+  // protectedStudentProcedure answers all three queries above with
+  // PRECONDITION_FAILED the instant the election closes — including on a
+  // plain reload of an already-loaded survey, since the session cookie
+  // itself (voteAuth.me, checked separately, a public procedure) stays
+  // valid for 7 days regardless of the election's phase. Bounced to the
+  // same fullscreen "closed" page /login already uses for that case,
+  // instead of letting the queries retry into a false "0 modules" survey
+  // (see the loading gate below, which keeps blocking render until this
+  // fires).
+  const fatalQueryError = modulesError ?? preferencesError ?? welcomeTextError;
+  useEffect(() => {
+    if (fatalQueryError) {
+      navigate({ to: "/login-error", search: { message: translateLoginError(fatalQueryError) } });
+    }
+  }, [fatalQueryError, navigate]);
 
   // The greeting + welcome/rule screens show once per student — tracked in
   // localStorage keyed by studentId (see lib/introStorage.ts), not tied to
@@ -298,7 +324,14 @@ function VotePage() {
     );
   }
 
-  if (modulesLoading || preferencesLoading || welcomeTextLoading || order === null || (showIntro && introStep === null)) {
+  if (
+    fatalQueryError ||
+    modulesLoading ||
+    preferencesLoading ||
+    welcomeTextLoading ||
+    order === null ||
+    (showIntro && introStep === null)
+  ) {
     return (
       <div className="flex flex-1 items-center justify-center">
         <p className="text-muted-foreground">Module werden geladen…</p>
