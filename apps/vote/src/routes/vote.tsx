@@ -45,13 +45,21 @@ export const Route = createFileRoute("/vote")({
   component: VotePage,
 });
 
-function cacheKey(studentId: string) {
+function submittedCacheKey(studentId: string) {
   return `modulocate:vote:submitted:${studentId}`;
 }
 
-function readCachedOrder(studentId: string): string[] | null {
+// The student's live, unsubmitted drag order — written on every reorder (see
+// the effect below `orderOverride`) so a reload mid-survey (before ever
+// hitting submit, or after — it's kept in sync either way) restores exactly
+// where they left off instead of falling back to the first-load shuffle.
+function draftCacheKey(studentId: string) {
+  return `modulocate:vote:draft:${studentId}`;
+}
+
+function readIdList(key: string): string[] | null {
   try {
-    const raw = localStorage.getItem(cacheKey(studentId));
+    const raw = localStorage.getItem(key);
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed) || !parsed.every((id) => typeof id === "string")) return null;
@@ -61,8 +69,32 @@ function readCachedOrder(studentId: string): string[] | null {
   }
 }
 
+function writeIdList(key: string, ids: string[]) {
+  try {
+    localStorage.setItem(key, JSON.stringify(ids));
+  } catch {
+    // Storage unavailable (private mode, quota, ...) — the draft simply
+    // won't survive a reload; nothing else depends on the write succeeding.
+  }
+}
+
 function sameOrder(a: string[], b: string[]) {
   return a.length === b.length && a.every((id, i) => id === b[i]);
+}
+
+// Rebuilds a module order from a saved id list (rank order) against the
+// eligible modules currently on the server: modules no longer eligible are
+// dropped, and any eligible module not present in the saved list — because
+// it's new since the list was saved — is appended at the end, after
+// whatever was ranked. Shared by the submitted-preferences order and the
+// local draft order below; both are "an id list that may be stale" in
+// exactly the same way.
+function reconcileOrder<M extends { id: string }>(ids: string[], modules: M[]): M[] {
+  const byId = new Map(modules.map((m) => [m.id, m]));
+  const known = ids.map((id) => byId.get(id)).filter((m): m is M => Boolean(m));
+  const knownIds = new Set(ids);
+  const rest = modules.filter((m) => !knownIds.has(m.id));
+  return [...known, ...rest];
 }
 
 function VotePage() {
@@ -159,35 +191,54 @@ function VotePage() {
     }
   }, [showIntro, greetingDismissed, introStep, student]);
 
-  // Ranking starts from the student's saved preference order (ranked modules
-  // first, in rank order), with any eligible-but-not-yet-ranked modules
-  // appended. A student with no saved preferences yet (never submitted) gets
-  // a randomized order with allocation-engine-granted modules pulled to the
-  // top instead — see buildFirstVoteOrder — so they don't rank mutually
-  // exclusive/rule-conflicting modules highly only to lose them later.
-  // Derived purely from data (no Effect needed): once the student starts
-  // dragging (orderOverride below, set from handleDragEnd), that local edit
-  // always wins over whatever this recomputes to afterward (e.g. a
-  // background refetch of `preferences`).
+  // Ranking starts, in priority order: (1) a local draft from an earlier,
+  // unsubmitted-or-not drag in a previous visit (see draftCacheKey above) —
+  // the freshest record of what the student actually wants, whether or not
+  // it was ever submitted; (2) the student's saved preference order (ranked
+  // modules first, in rank order), with any eligible-but-not-yet-ranked
+  // modules appended; (3) for a student with neither — never dragged, never
+  // submitted — a randomized order with allocation-engine-granted modules
+  // pulled to the top instead — see buildFirstVoteOrder — so they don't rank
+  // mutually exclusive/rule-conflicting modules highly only to lose them
+  // later. Both (1) and (2) are reconciled against the live eligible-modules
+  // list (reconcileOrder) since either can predate a module becoming
+  // in/eligible. Derived purely from data (no Effect needed): once the
+  // student starts dragging in *this* session (orderOverride below, set from
+  // handleDragEnd), that local edit always wins over whatever this
+  // recomputes to afterward (e.g. a background refetch of `preferences`).
   const baseOrder = useMemo<Module[] | null>(() => {
     if (modulesLoading || preferencesLoading || !student) return null;
+    const draftIds = readIdList(draftCacheKey(student.studentId));
+    if (draftIds) return reconcileOrder(draftIds, modules);
     if (preferences.length === 0) {
       return buildFirstVoteOrder(student.studentId, modules, rule);
     }
     const rankedIds = preferences.map((p) => p.moduleId);
-    const byId = new Map(modules.map((m) => [m.id, m]));
-    const ranked = rankedIds.map((id) => byId.get(id)).filter((m): m is Module => Boolean(m));
-    const unranked = modules.filter((m) => !rankedIds.includes(m.id));
-    return [...ranked, ...unranked];
+    return reconcileOrder(rankedIds, modules);
   }, [modules, preferences, modulesLoading, preferencesLoading, student, rule]);
   const [orderOverride, setOrderOverride] = useState<Module[] | null>(null);
   const order = orderOverride ?? baseOrder;
+
+  // Mirrors the live order into the draft cache on every reorder, so the
+  // *next* reload's baseOrder picks it up above. Deliberately keyed off
+  // orderOverride (not `order`/baseOrder) so it only starts writing once the
+  // student has actually dragged something in this session — until then,
+  // nothing is written and a reload still runs the plain
+  // preferences/buildFirstVoteOrder path untouched.
+  useEffect(() => {
+    if (student && orderOverride) {
+      writeIdList(
+        draftCacheKey(student.studentId),
+        orderOverride.map((m) => m.id),
+      );
+    }
+  }, [student, orderOverride]);
 
   const [infoModule, setInfoModule] = useState<Module | null>(null);
   // Overrides the localStorage read once a submit succeeds in this session,
   // so the button reflects it immediately without a storage round-trip.
   const [submittedOverride, setSubmittedOverride] = useState<string[] | null>(null);
-  const cachedOrder = student ? (submittedOverride ?? readCachedOrder(student.studentId)) : null;
+  const cachedOrder = student ? (submittedOverride ?? readIdList(submittedCacheKey(student.studentId))) : null;
 
   // Auto-opening the tutorial is tied to the same per-student condition as
   // the greeting/welcome/rule screens (see showIntro above) — a student who
@@ -252,7 +303,7 @@ function VotePage() {
       onSuccess: (_result, variables) => {
         queryClient.invalidateQueries({ queryKey: trpc.vote.myPreferences.queryKey() });
         if (student) {
-          localStorage.setItem(cacheKey(student.studentId), JSON.stringify(variables.moduleIds));
+          writeIdList(submittedCacheKey(student.studentId), variables.moduleIds);
           setSubmittedOverride(variables.moduleIds);
         }
         setSubmitResult({ status: "success" });
