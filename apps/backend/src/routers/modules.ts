@@ -91,8 +91,19 @@ export async function loadModules(executor: DbExecutor, projectId: string, ids?:
     .from(studentPreferences)
     .where(inArray(studentPreferences.moduleId, moduleIds));
 
+  // assignedPreferencesByModule backs both medianPreference (below) and
+  // averagePreferenceAssigned — "how happy are the students who actually got
+  // in", allocation-run-dependent. allPreferencesByModule backs
+  // averagePreferenceAll — the mean over every student who ranked the
+  // module regardless of outcome, i.e. raw popularity independent of any
+  // allocation run/capacity.
   const assignedPreferencesByModule = new Map<string, number[]>();
+  const allPreferencesByModule = new Map<string, number[]>();
   for (const row of preferenceRows) {
+    const allList = allPreferencesByModule.get(row.moduleId) ?? [];
+    allList.push(row.preference);
+    allPreferencesByModule.set(row.moduleId, allList);
+
     if (!assignedStudentIdsByModule.get(row.moduleId)?.has(row.studentId)) continue;
     const list = assignedPreferencesByModule.get(row.moduleId) ?? [];
     list.push(row.preference);
@@ -109,6 +120,8 @@ export async function loadModules(executor: DbExecutor, projectId: string, ids?:
     displayScheduleLabel: module.scheduleLabel || displayScheduleLabelByModule.get(module.id) || null,
     studentCount: studentCountByModule.get(module.id) ?? 0,
     medianPreference: median(assignedPreferencesByModule.get(module.id) ?? []),
+    averagePreferenceAll: average(allPreferencesByModule.get(module.id) ?? []),
+    averagePreferenceAssigned: average(assignedPreferencesByModule.get(module.id) ?? []),
   }));
 }
 
@@ -161,6 +174,11 @@ function median(values: number[]): number | null {
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
   return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+function average(values: number[]): number | null {
+  if (values.length === 0) return null;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
 export const modulesRouter = router({

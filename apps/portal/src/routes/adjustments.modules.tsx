@@ -48,6 +48,8 @@ type Module = {
   max: number;
   studentCount: number;
   medianPreference: number | null;
+  averagePreferenceAll: number | null;
+  averagePreferenceAssigned: number | null;
   demand: number | null;
 };
 
@@ -78,12 +80,18 @@ function AdjustmentsModulesPage() {
       switch (key) {
         case "name":
           return module.name;
+        case "displayScheduleLabel":
+          return module.displayScheduleLabel ?? "";
         case "teacher":
           return module.teacher ?? "";
         case "fillRatio":
           return fillRatio(module);
         case "medianPreference":
           return module.medianPreference;
+        case "averagePreferenceAll":
+          return module.averagePreferenceAll;
+        case "averagePreferenceAssigned":
+          return module.averagePreferenceAssigned;
         case "demand":
           return module.demand;
         default:
@@ -150,7 +158,9 @@ function AdjustmentsModulesPage() {
               <SortableTableHead sortKey="name" currentSort={sort} onSort={handleSort}>
                 Name
               </SortableTableHead>
-              <TableHead>Datum</TableHead>
+              <SortableTableHead sortKey="displayScheduleLabel" currentSort={sort} onSort={handleSort}>
+                Datum
+              </SortableTableHead>
               <SortableTableHead sortKey="teacher" currentSort={sort} onSort={handleSort}>
                 Lehrer
               </SortableTableHead>
@@ -164,6 +174,22 @@ function AdjustmentsModulesPage() {
                 title="Median der Präferenz-Ränge der zugewiesenen Schüler (1 = Erstwunsch)"
               >
                 Median-Prio
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="averagePreferenceAssigned"
+                currentSort={sort}
+                onSort={handleSort}
+                title="Durchschnitt der Präferenz-Ränge nur der Schüler, die dem Modul tatsächlich zugewiesen wurden (1 = Erstwunsch) — abhängig vom letzten Zuteilungslauf"
+              >
+                Ø-Prio (Zugewiesene)
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="averagePreferenceAll"
+                currentSort={sort}
+                onSort={handleSort}
+                title="Durchschnitt der Präferenz-Ränge aller Schüler, die das Modul gewählt haben (1 = Erstwunsch), unabhängig vom Zuteilungslauf"
+              >
+                Ø-Prio (alle Wähler)
               </SortableTableHead>
               <SortableTableHead
                 sortKey="demand"
@@ -188,6 +214,12 @@ function AdjustmentsModulesPage() {
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {module.medianPreference ?? "–"}
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {module.averagePreferenceAssigned?.toFixed(1) ?? "–"}
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {module.averagePreferenceAll?.toFixed(1) ?? "–"}
                 </TableCell>
                 <TableCell className="text-muted-foreground">{module.demand ?? "–"}</TableCell>
               </TableRow>
