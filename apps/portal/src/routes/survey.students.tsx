@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Check, Copy, Link2, Mail } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -26,6 +25,7 @@ import {
 } from "../lib/voteStatus";
 import { StudentPreferencesDialog } from "../components/StudentPreferencesDialog";
 import { ResendVoteCodeDialog } from "../components/ResendVoteCodeDialog";
+import { RegenerateCodeDialog } from "../components/RegenerateCodeDialog";
 
 // Optional keys so an empty search/filter/sort state serializes to no query
 // params at all, instead of leaving "?q=&status=&sort=" around by default.
@@ -50,11 +50,6 @@ export const Route = createFileRoute("/survey/students")({
     }),
 });
 
-// Portal and vote are same-origin behind Traefik (path-routed to /portal and
-// /voting — see compose.dev.yaml, compose.yaml), so this can just use the page's own
-// origin instead of hardcoding a host.
-const VOTE_APP_URL = `${window.location.origin}/voting`;
-
 type Student = {
   id: string;
   name: string;
@@ -78,39 +73,17 @@ function formatDateTime(value: string) {
   });
 }
 
-function voteStatusLabel(student: Student) {
+function voteStatusDate(student: Student): string | null {
   switch (resolveVoteStatus(student)) {
     case "submitted":
-      return `Abgestimmt am ${formatDateTime(student.voteSubmittedAt!)}`;
+      return student.voteSubmittedAt;
     case "opened":
-      return `Geöffnet am ${formatDateTime(student.voteOpenedAt!)}`;
+      return student.voteOpenedAt;
     case "sent":
-      return `Mail erhalten am ${formatDateTime(student.voteCodeSentAt!)}`;
+      return student.voteCodeSentAt;
     case "none":
-      return "Nicht erhalten";
+      return null;
   }
-}
-
-function CopyButton({ value, label, icon: Icon }: { value: string; label: string; icon: typeof Copy }) {
-  const [copied, setCopied] = useState(false);
-
-  async function handleClick(e: React.MouseEvent) {
-    e.stopPropagation();
-    await navigator.clipboard.writeText(value);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={handleClick}
-      title={label}
-      className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-accent-foreground group-hover:opacity-100"
-    >
-      {copied ? <Check className="size-3.5" /> : <Icon className="size-3.5" />}
-    </button>
-  );
 }
 
 function SurveyStudentsPage() {
@@ -157,6 +130,8 @@ function SurveyStudentsPage() {
           return student.groupName ?? "";
         case "status":
           return VOTE_STATUS_SORT_ORDER.indexOf(resolveVoteStatus(student));
+        case "date":
+          return voteStatusDate(student) ?? "";
         default:
           return null;
       }
@@ -194,21 +169,33 @@ function SurveyStudentsPage() {
     });
   }
 
-  const [selectedStudent, setSelectedStudent] = useState<Student | undefined>();
+  // Looked up by id from the live query result (rather than snapshotting the
+  // Student object at click time) so the preferences modal picks up changes
+  // made while it's open — e.g. regenerating the voting code invalidates
+  // `students.list`, and the modal should show the new code immediately.
+  const [selectedStudentId, setSelectedStudentId] = useState<string | undefined>();
+  const selectedStudent = students?.find((student) => student.id === selectedStudentId);
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const [resendStudent, setResendStudent] = useState<Student | undefined>();
   const [resendDialogOpen, setResendDialogOpen] = useState(false);
 
+  const [regenerateStudent, setRegenerateStudent] = useState<Student | undefined>();
+  const [regenerateDialogOpen, setRegenerateDialogOpen] = useState(false);
+
   function openStudent(student: Student) {
-    setSelectedStudent(student);
+    setSelectedStudentId(student.id);
     setDialogOpen(true);
   }
 
-  function openResend(e: React.MouseEvent, student: Student) {
-    e.stopPropagation();
+  function openResend(student: Student) {
     setResendStudent(student);
     setResendDialogOpen(true);
+  }
+
+  function openRegenerate(student: Student) {
+    setRegenerateStudent(student);
+    setRegenerateDialogOpen(true);
   }
 
   return (
@@ -247,57 +234,40 @@ function SurveyStudentsPage() {
               <SortableTableHead sortKey="group" currentSort={sort} onSort={handleSort}>
                 Klasse
               </SortableTableHead>
-              <TableHead>Voting-Code</TableHead>
               <SortableTableHead sortKey="status" currentSort={sort} onSort={handleSort}>
-                Voting-Status
+                Status
+              </SortableTableHead>
+              <SortableTableHead sortKey="date" currentSort={sort} onSort={handleSort}>
+                Datum
               </SortableTableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sortedStudents.map((student) => (
-              <TableRow
-                key={student.id}
-                onClick={() => openStudent(student)}
-                className={cn("cursor-pointer", VOTE_STATUS_ROW_COLOR[resolveVoteStatus(student)])}
-              >
-                <TableCell className="font-medium">{student.name}</TableCell>
-                <TableCell className="text-muted-foreground">{student.email}</TableCell>
-                <TableCell className="text-muted-foreground">{student.groupName || "–"}</TableCell>
-                <TableCell>
-                  {student.signInCode ? (
-                    <div className="group flex items-center gap-1.5">
-                      <span className="font-mono text-xs text-muted-foreground">
-                        {student.signInCode}
-                      </span>
-                      <CopyButton value={student.signInCode} label="Code kopieren" icon={Copy} />
-                      <CopyButton
-                        value={`${VOTE_APP_URL}/login?code=${student.signInCode}`}
-                        label="Voting-Link kopieren"
-                        icon={Link2}
-                      />
-                      <button
-                        type="button"
-                        onClick={(e) => openResend(e, student)}
-                        title="Voting-Code erneut zusenden"
-                        className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-accent-foreground group-hover:opacity-100"
-                      >
-                        <Mail className="size-3.5" />
-                      </button>
-                    </div>
-                  ) : (
-                    <span className="text-muted-foreground">–</span>
-                  )}
-                </TableCell>
-                <TableCell
-                  className={cn(
-                    "text-muted-foreground",
-                    student.voteSubmittedAt && "text-foreground",
-                  )}
+            {sortedStudents.map((student) => {
+              const statusDate = voteStatusDate(student);
+              return (
+                <TableRow
+                  key={student.id}
+                  onClick={() => openStudent(student)}
+                  className={cn("cursor-pointer", VOTE_STATUS_ROW_COLOR[resolveVoteStatus(student)])}
                 >
-                  {voteStatusLabel(student)}
-                </TableCell>
-              </TableRow>
-            ))}
+                  <TableCell className="font-medium">{student.name}</TableCell>
+                  <TableCell className="text-muted-foreground">{student.email}</TableCell>
+                  <TableCell className="text-muted-foreground">{student.groupName || "–"}</TableCell>
+                  <TableCell
+                    className={cn(
+                      "text-muted-foreground",
+                      student.voteSubmittedAt && "text-foreground",
+                    )}
+                  >
+                    {VOTE_STATUS_LABEL[resolveVoteStatus(student)]}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {statusDate ? formatDateTime(statusDate) : "–"}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       )}
@@ -308,6 +278,8 @@ function SurveyStudentsPage() {
           student={selectedStudent}
           open={dialogOpen}
           onOpenChange={setDialogOpen}
+          onResend={() => selectedStudent && openResend(selectedStudent)}
+          onRegenerate={() => selectedStudent && openRegenerate(selectedStudent)}
         />
       )}
 
@@ -317,6 +289,15 @@ function SurveyStudentsPage() {
           student={resendStudent}
           open={resendDialogOpen}
           onOpenChange={setResendDialogOpen}
+        />
+      )}
+
+      {projectId && (
+        <RegenerateCodeDialog
+          projectId={projectId}
+          student={regenerateStudent}
+          open={regenerateDialogOpen}
+          onOpenChange={setRegenerateDialogOpen}
         />
       )}
     </div>

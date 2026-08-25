@@ -188,6 +188,22 @@ export const studentsRouter = router({
       });
     }),
 
+  // Overwrites the student's signInCode with a fresh one — also covers a
+  // student who never had one. Any previously emailed link stops working,
+  // since signInCode is the whole credential (see voteAuth.login).
+  regenerateSignInCode: staffProcedure
+    .input(projectScoped.extend({ id: z.uuid() }))
+    .mutation(async ({ input }) => {
+      const [student] = await db
+        .update(students)
+        .set({ signInCode: generateSignInCode() })
+        .where(and(eq(students.id, input.id), eq(students.projectId, input.projectId)))
+        .returning();
+      if (!student) throw new TRPCError({ code: "NOT_FOUND" });
+      const [full] = await loadStudents(db, input.projectId, [input.id]);
+      return full;
+    }),
+
   // Hard delete. The student's own group membership is cleared first since
   // "Klasse" is a routine field here (not allocation-engine state) — leaving
   // it would FK-fail every delete for any student with a class set. Still
