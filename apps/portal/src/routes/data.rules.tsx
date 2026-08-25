@@ -1,15 +1,27 @@
-import { useState } from "react";
+import { useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, Settings } from "lucide-react";
 import { Button } from "@modulocate/ui/components/button";
+import { pruneEmpty } from "@modulocate/ui/lib/use-list-filter";
 import { useTRPC } from "../trpc";
 import { useProject } from "../lib/use-project";
+import { useDialogSearchParam } from "../lib/use-dialog-search-param";
 import { RuleDialog } from "../components/RuleDialog";
 import { RuleContentDialog } from "../components/RuleContentDialog";
 
+// ruleId/ruleSettingsId double as the open-state for RuleContentDialog and
+// RuleDialog — see use-dialog-search-param.ts. ruleSettingsId uses the
+// sentinel "new" for the create-rule flow.
+type RulesSearch = { ruleId?: string; ruleSettingsId?: string };
+
 export const Route = createFileRoute("/data/rules")({
   component: RulesPage,
+  validateSearch: (search: Record<string, unknown>): RulesSearch =>
+    pruneEmpty({
+      ruleId: typeof search.ruleId === "string" ? search.ruleId : "",
+      ruleSettingsId: typeof search.ruleSettingsId === "string" ? search.ruleSettingsId : "",
+    }),
 });
 
 type Rule = { id: string; name: string };
@@ -17,29 +29,46 @@ type Rule = { id: string; name: string };
 function RulesPage() {
   const trpc = useTRPC();
   const { projectId } = useProject();
+  const navigate = Route.useNavigate();
+  const { ruleId, ruleSettingsId } = Route.useSearch();
   const { data: rules, isLoading } = useQuery({
     ...trpc.rules.list.queryOptions({ projectId: projectId! }),
     enabled: !!projectId,
   });
 
-  const [settingsRule, setSettingsRule] = useState<Rule | undefined>();
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [contentRule, setContentRule] = useState<Rule | undefined>();
-  const [contentOpen, setContentOpen] = useState(false);
+  function setRuleId(id: string | undefined, { push }: { push: boolean }) {
+    navigate({ search: (prev) => pruneEmpty({ ...prev, ruleId: id }), replace: !push });
+  }
+
+  function setRuleSettingsId(id: string | undefined, { push }: { push: boolean }) {
+    navigate({ search: (prev) => pruneEmpty({ ...prev, ruleSettingsId: id }), replace: !push });
+  }
+
+  const contentDialog = useDialogSearchParam(ruleId, setRuleId);
+  const settingsDialog = useDialogSearchParam(ruleSettingsId, setRuleSettingsId);
+  const contentRule = rules?.find((r) => r.id === ruleId);
+  const settingsRule =
+    ruleSettingsId && ruleSettingsId !== "new" ? rules?.find((r) => r.id === ruleSettingsId) : undefined;
+
+  useEffect(() => {
+    if (!rules) return;
+    if (ruleId && !rules.some((r) => r.id === ruleId)) setRuleId(undefined, { push: false });
+    if (ruleSettingsId && ruleSettingsId !== "new" && !rules.some((r) => r.id === ruleSettingsId)) {
+      setRuleSettingsId(undefined, { push: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rules, ruleId, ruleSettingsId]);
 
   function openCreate() {
-    setSettingsRule(undefined);
-    setSettingsOpen(true);
+    settingsDialog.open("new");
   }
 
   function openSettings(rule: Rule) {
-    setSettingsRule(rule);
-    setSettingsOpen(true);
+    settingsDialog.open(rule.id);
   }
 
   function openContent(rule: Rule) {
-    setContentRule(rule);
-    setContentOpen(true);
+    contentDialog.open(rule.id);
   }
 
   return (
@@ -97,8 +126,8 @@ function RulesPage() {
         <RuleDialog
           projectId={projectId}
           rule={settingsRule}
-          open={settingsOpen}
-          onOpenChange={setSettingsOpen}
+          open={settingsDialog.isOpen}
+          onOpenChange={settingsDialog.onOpenChange}
         />
       )}
 
@@ -106,8 +135,8 @@ function RulesPage() {
         <RuleContentDialog
           projectId={projectId}
           rule={contentRule}
-          open={contentOpen}
-          onOpenChange={setContentOpen}
+          open={contentDialog.isOpen}
+          onOpenChange={contentDialog.onOpenChange}
         />
       )}
     </div>

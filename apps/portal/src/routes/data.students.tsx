@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
@@ -16,16 +16,20 @@ import { useListFilter, pruneEmpty, type FilterConfig } from "@modulocate/ui/lib
 import { useTableSort, toggleSort, type SortState, type SortDirection } from "@modulocate/ui/lib/use-table-sort";
 import { useTRPC } from "../trpc";
 import { useProject } from "../lib/use-project";
+import { useDialogSearchParam } from "../lib/use-dialog-search-param";
 import { StudentDialog } from "../components/StudentDialog";
 
 // Optional keys so an empty search/filter/sort state serializes to no query
 // params at all, instead of leaving "?q=&group=&sort=" around by default.
+// studentId doubles as StudentDialog's open state — see
+// use-dialog-search-param.ts. Sentinel "new" is the create flow.
 type StudentsSearch = {
   q?: string;
   group?: string[];
   rule?: string[];
   sort?: string;
   dir?: SortDirection;
+  studentId?: string;
 };
 
 function parseStringArray(value: unknown): string[] {
@@ -45,6 +49,7 @@ export const Route = createFileRoute("/data/students")({
       rule: parseStringArray(search.rule),
       sort: typeof search.sort === "string" ? search.sort : "",
       dir: parseSortDir(search.dir),
+      studentId: typeof search.studentId === "string" ? search.studentId : "",
     }),
 });
 
@@ -63,7 +68,7 @@ function StudentsPage() {
   const trpc = useTRPC();
   const { projectId } = useProject();
   const navigate = Route.useNavigate();
-  const { q = "", group = [], rule = [], sort: sortKey, dir } = Route.useSearch();
+  const { q = "", group = [], rule = [], sort: sortKey, dir, studentId } = Route.useSearch();
   const sort: SortState = sortKey && dir ? { key: sortKey, dir } : null;
   const { data: students, isLoading } = useQuery({
     ...trpc.students.list.queryOptions({ projectId: projectId! }),
@@ -120,24 +125,12 @@ function StudentsPage() {
   });
 
   function setQuery(value: string) {
-    navigate({
-      search: (prev) =>
-        pruneEmpty({ q: value, group: prev.group ?? [], rule: prev.rule ?? [], sort: prev.sort ?? "", dir: prev.dir }),
-      replace: true,
-    });
+    navigate({ search: (prev) => pruneEmpty({ ...prev, q: value }), replace: true });
   }
 
   function setFilter(key: string, values: string[]) {
     navigate({
-      search: (prev) =>
-        pruneEmpty({
-          q: prev.q ?? "",
-          group: prev.group ?? [],
-          rule: prev.rule ?? [],
-          sort: prev.sort ?? "",
-          dir: prev.dir,
-          [key]: values,
-        }) as StudentsSearch,
+      search: (prev) => pruneEmpty({ ...prev, [key]: values }) as StudentsSearch,
       replace: true,
     });
   }
@@ -145,29 +138,30 @@ function StudentsPage() {
   function handleSort(key: string) {
     const next = toggleSort(sort, key);
     navigate({
-      search: (prev) =>
-        pruneEmpty({
-          q: prev.q ?? "",
-          group: prev.group ?? [],
-          rule: prev.rule ?? [],
-          sort: next?.key ?? "",
-          dir: next?.dir,
-        }),
+      search: (prev) => pruneEmpty({ ...prev, sort: next?.key ?? "", dir: next?.dir }),
       replace: true,
     });
   }
 
-  const [editingStudent, setEditingStudent] = useState<Student | undefined>();
-  const [dialogOpen, setDialogOpen] = useState(false);
+  function setStudentId(id: string | undefined, { push }: { push: boolean }) {
+    navigate({ search: (prev) => pruneEmpty({ ...prev, studentId: id }), replace: !push });
+  }
+
+  const dialog = useDialogSearchParam(studentId, setStudentId);
+  const editingStudent = studentId && studentId !== "new" ? students?.find((s) => s.id === studentId) : undefined;
+
+  useEffect(() => {
+    if (!students || !studentId || studentId === "new") return;
+    if (!students.some((s) => s.id === studentId)) setStudentId(undefined, { push: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [students, studentId]);
 
   function openCreate() {
-    setEditingStudent(undefined);
-    setDialogOpen(true);
+    dialog.open("new");
   }
 
   function openEdit(student: Student) {
-    setEditingStudent(student);
-    setDialogOpen(true);
+    dialog.open(student.id);
   }
 
   return (
@@ -251,8 +245,8 @@ function StudentsPage() {
         <StudentDialog
           projectId={projectId}
           student={editingStudent}
-          open={dialogOpen}
-          onOpenChange={setDialogOpen}
+          open={dialog.isOpen}
+          onOpenChange={dialog.onOpenChange}
         />
       )}
     </div>

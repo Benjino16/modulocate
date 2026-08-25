@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -15,12 +15,14 @@ import { useListFilter, pruneEmpty } from "@modulocate/ui/lib/use-list-filter";
 import { useTableSort, toggleSort, type SortState, type SortDirection } from "@modulocate/ui/lib/use-table-sort";
 import { useTRPC } from "../trpc";
 import { useProject } from "../lib/use-project";
+import { useDialogSearchParam } from "../lib/use-dialog-search-param";
 import { ModuleRosterDialog } from "../components/ModuleRosterDialog";
 import { CapacityBar } from "../components/CapacityBar";
 
 // Optional keys so an empty search/sort state serializes to no query params
-// at all, instead of leaving "?q=&sort=" around by default.
-type ModulesSearch = { q?: string; sort?: string; dir?: SortDirection };
+// at all, instead of leaving "?q=&sort=" around by default. moduleId doubles
+// as ModuleRosterDialog's open state — see use-dialog-search-param.ts.
+type ModulesSearch = { q?: string; sort?: string; dir?: SortDirection; moduleId?: string };
 
 function parseSortDir(value: unknown): SortDirection | undefined {
   return value === "asc" || value === "desc" ? value : undefined;
@@ -33,6 +35,7 @@ export const Route = createFileRoute("/adjustments/modules")({
       q: typeof search.q === "string" ? search.q : "",
       sort: typeof search.sort === "string" ? search.sort : "",
       dir: parseSortDir(search.dir),
+      moduleId: typeof search.moduleId === "string" ? search.moduleId : "",
     }),
 });
 
@@ -52,7 +55,7 @@ function AdjustmentsModulesPage() {
   const trpc = useTRPC();
   const { projectId } = useProject();
   const navigate = Route.useNavigate();
-  const { q = "", sort: sortKey, dir } = Route.useSearch();
+  const { q = "", sort: sortKey, dir, moduleId } = Route.useSearch();
   // Default to fullest-first, same as before, but now just the initial
   // sort — any column stays clickable to override it.
   const sort: SortState = sortKey && dir ? { key: sortKey, dir } : { key: "fillRatio", dir: "desc" };
@@ -90,26 +93,32 @@ function AdjustmentsModulesPage() {
   });
 
   function setQuery(value: string) {
-    navigate({
-      search: (prev) => pruneEmpty({ q: value, sort: prev.sort ?? "", dir: prev.dir }),
-      replace: true,
-    });
+    navigate({ search: (prev) => pruneEmpty({ ...prev, q: value }), replace: true });
   }
 
   function handleSort(key: string) {
     const next = toggleSort(sort, key);
     navigate({
-      search: (prev) => pruneEmpty({ q: prev.q ?? "", sort: next?.key ?? "", dir: next?.dir }),
+      search: (prev) => pruneEmpty({ ...prev, sort: next?.key ?? "", dir: next?.dir }),
       replace: true,
     });
   }
 
-  const [selectedModule, setSelectedModule] = useState<Module | undefined>();
-  const [rosterOpen, setRosterOpen] = useState(false);
+  function setModuleId(id: string | undefined, { push }: { push: boolean }) {
+    navigate({ search: (prev) => pruneEmpty({ ...prev, moduleId: id }), replace: !push });
+  }
+
+  const dialog = useDialogSearchParam(moduleId, setModuleId);
+  const selectedModule = modules?.find((m) => m.id === moduleId);
+
+  useEffect(() => {
+    if (!modules || !moduleId) return;
+    if (!modules.some((m) => m.id === moduleId)) setModuleId(undefined, { push: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modules, moduleId]);
 
   function openRoster(module: Module) {
-    setSelectedModule(module);
-    setRosterOpen(true);
+    dialog.open(module.id);
   }
 
   return (
@@ -191,8 +200,8 @@ function AdjustmentsModulesPage() {
         <ModuleRosterDialog
           projectId={projectId}
           module={selectedModule}
-          open={rosterOpen}
-          onOpenChange={setRosterOpen}
+          open={dialog.isOpen}
+          onOpenChange={dialog.onOpenChange}
         />
       )}
     </div>

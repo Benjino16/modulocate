@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -14,11 +14,13 @@ import { useListFilter, pruneEmpty } from "@modulocate/ui/lib/use-list-filter";
 import { useTableSort, toggleSort, type SortState, type SortDirection } from "@modulocate/ui/lib/use-table-sort";
 import { useTRPC } from "../trpc";
 import { useProject } from "../lib/use-project";
+import { useDialogSearchParam } from "../lib/use-dialog-search-param";
 import { StudentModuleDialog } from "../components/StudentModuleDialog";
 
 // Optional keys so an empty search/sort state serializes to no query params
-// at all, instead of leaving "?q=&sort=" around by default.
-type AdjustmentsStudentsSearch = { q?: string; sort?: string; dir?: SortDirection };
+// at all, instead of leaving "?q=&sort=" around by default. studentId doubles
+// as StudentModuleDialog's open state — see use-dialog-search-param.ts.
+type AdjustmentsStudentsSearch = { q?: string; sort?: string; dir?: SortDirection; studentId?: string };
 
 function parseSortDir(value: unknown): SortDirection | undefined {
   return value === "asc" || value === "desc" ? value : undefined;
@@ -31,6 +33,7 @@ export const Route = createFileRoute("/adjustments/students")({
       q: typeof search.q === "string" ? search.q : "",
       sort: typeof search.sort === "string" ? search.sort : "",
       dir: parseSortDir(search.dir),
+      studentId: typeof search.studentId === "string" ? search.studentId : "",
     }),
 });
 
@@ -55,7 +58,7 @@ function AdjustmentsStudentsPage() {
   const trpc = useTRPC();
   const { projectId } = useProject();
   const navigate = Route.useNavigate();
-  const { q = "", sort: sortKey, dir } = Route.useSearch();
+  const { q = "", sort: sortKey, dir, studentId } = Route.useSearch();
   const sort: SortState = sortKey && dir ? { key: sortKey, dir } : null;
 
   const { data: students, isLoading } = useQuery({
@@ -99,26 +102,32 @@ function AdjustmentsStudentsPage() {
   });
 
   function setQuery(value: string) {
-    navigate({
-      search: (prev) => pruneEmpty({ q: value, sort: prev.sort ?? "", dir: prev.dir }),
-      replace: true,
-    });
+    navigate({ search: (prev) => pruneEmpty({ ...prev, q: value }), replace: true });
   }
 
   function handleSort(key: string) {
     const next = toggleSort(sort, key);
     navigate({
-      search: (prev) => pruneEmpty({ q: prev.q ?? "", sort: next?.key ?? "", dir: next?.dir }),
+      search: (prev) => pruneEmpty({ ...prev, sort: next?.key ?? "", dir: next?.dir }),
       replace: true,
     });
   }
 
-  const [selectedStudent, setSelectedStudent] = useState<Student | undefined>();
-  const [dialogOpen, setDialogOpen] = useState(false);
+  function setStudentId(id: string | undefined, { push }: { push: boolean }) {
+    navigate({ search: (prev) => pruneEmpty({ ...prev, studentId: id }), replace: !push });
+  }
+
+  const dialog = useDialogSearchParam(studentId, setStudentId);
+  const selectedStudent = students?.find((s) => s.id === studentId);
+
+  useEffect(() => {
+    if (!students || !studentId) return;
+    if (!students.some((s) => s.id === studentId)) setStudentId(undefined, { push: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [students, studentId]);
 
   function openStudent(student: Student) {
-    setSelectedStudent(student);
-    setDialogOpen(true);
+    dialog.open(student.id);
   }
 
   return (
@@ -189,8 +198,8 @@ function AdjustmentsStudentsPage() {
         <StudentModuleDialog
           projectId={projectId}
           student={selectedStudent}
-          open={dialogOpen}
-          onOpenChange={setDialogOpen}
+          open={dialog.isOpen}
+          onOpenChange={dialog.onOpenChange}
         />
       )}
     </div>

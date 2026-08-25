@@ -4,14 +4,22 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@modulocate/ui/components/button";
 import { Input } from "@modulocate/ui/components/input";
 import { Label } from "@modulocate/ui/components/label";
+import { pruneEmpty } from "@modulocate/ui/lib/use-list-filter";
 import { PhaseLayout } from "../components/PhaseLayout";
 import { AllocationRunTile, type AllocationRunSummary } from "../components/AllocationRunTile";
 import { AllocationRunDetailDialog } from "../components/AllocationRunDetailDialog";
 import { useTRPC } from "../trpc";
 import { useProject } from "../lib/use-project";
+import { useDialogSearchParam } from "../lib/use-dialog-search-param";
+
+// runId doubles as AllocationRunDetailDialog's open state — see
+// use-dialog-search-param.ts.
+type AllocationSearch = { runId?: string };
 
 export const Route = createFileRoute("/allocation")({
   component: AllocationPage,
+  validateSearch: (search: Record<string, unknown>): AllocationSearch =>
+    pruneEmpty({ runId: typeof search.runId === "string" ? search.runId : "" }),
 });
 
 const tabs = [{ to: "/allocation", label: "Zuteilung" }];
@@ -19,6 +27,8 @@ const tabs = [{ to: "/allocation", label: "Zuteilung" }];
 function AllocationPage() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
+  const navigate = Route.useNavigate();
+  const { runId } = Route.useSearch();
   const { projects, projectId } = useProject();
   const project = projects.find((p) => p.id === projectId);
   const canStartRun = project?.phase === "allocating" || project?.phase === "reviewing";
@@ -27,12 +37,14 @@ function AllocationPage() {
   const [seed, setSeed] = useState("");
   const [error, setError] = useState<string | undefined>();
 
-  const [selectedRunId, setSelectedRunId] = useState<string | undefined>();
-  const [detailOpen, setDetailOpen] = useState(false);
+  function setRunId(id: string | undefined, { push }: { push: boolean }) {
+    navigate({ search: (prev) => pruneEmpty({ ...prev, runId: id }), replace: !push });
+  }
+
+  const dialog = useDialogSearchParam(runId, setRunId);
 
   function openDetail(runId: string) {
-    setSelectedRunId(runId);
-    setDetailOpen(true);
+    dialog.open(runId);
   }
 
   const { data: runs, isLoading } = useQuery({
@@ -144,9 +156,9 @@ function AllocationPage() {
       {projectId && (
         <AllocationRunDetailDialog
           projectId={projectId}
-          runId={selectedRunId}
-          open={detailOpen}
-          onOpenChange={setDetailOpen}
+          runId={runId}
+          open={dialog.isOpen}
+          onOpenChange={dialog.onOpenChange}
         />
       )}
     </PhaseLayout>

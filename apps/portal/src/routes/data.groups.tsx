@@ -1,14 +1,22 @@
-import { useState } from "react";
+import { useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { Button } from "@modulocate/ui/components/button";
+import { pruneEmpty } from "@modulocate/ui/lib/use-list-filter";
 import { useTRPC } from "../trpc";
 import { useProject } from "../lib/use-project";
+import { useDialogSearchParam } from "../lib/use-dialog-search-param";
 import { GroupDialog } from "../components/GroupDialog";
+
+// groupId doubles as GroupDialog's open state — see use-dialog-search-param.ts.
+// Sentinel "new" is the create flow.
+type GroupsSearch = { groupId?: string };
 
 export const Route = createFileRoute("/data/groups")({
   component: GroupsPage,
+  validateSearch: (search: Record<string, unknown>): GroupsSearch =>
+    pruneEmpty({ groupId: typeof search.groupId === "string" ? search.groupId : "" }),
 });
 
 type Group = { id: string; name: string; ruleId: string | null; studentCount?: number };
@@ -16,22 +24,32 @@ type Group = { id: string; name: string; ruleId: string | null; studentCount?: n
 function GroupsPage() {
   const trpc = useTRPC();
   const { projectId } = useProject();
+  const navigate = Route.useNavigate();
+  const { groupId } = Route.useSearch();
   const { data: groups, isLoading } = useQuery({
     ...trpc.studentGroups.list.queryOptions({ projectId: projectId! }),
     enabled: !!projectId,
   });
 
-  const [editingGroup, setEditingGroup] = useState<Group | undefined>();
-  const [dialogOpen, setDialogOpen] = useState(false);
+  function setGroupId(id: string | undefined, { push }: { push: boolean }) {
+    navigate({ search: (prev) => pruneEmpty({ ...prev, groupId: id }), replace: !push });
+  }
+
+  const dialog = useDialogSearchParam(groupId, setGroupId);
+  const editingGroup = groupId && groupId !== "new" ? groups?.find((g) => g.id === groupId) : undefined;
+
+  useEffect(() => {
+    if (!groups || !groupId || groupId === "new") return;
+    if (!groups.some((g) => g.id === groupId)) setGroupId(undefined, { push: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groups, groupId]);
 
   function openCreate() {
-    setEditingGroup(undefined);
-    setDialogOpen(true);
+    dialog.open("new");
   }
 
   function openEdit(group: Group) {
-    setEditingGroup(group);
-    setDialogOpen(true);
+    dialog.open(group.id);
   }
 
   return (
@@ -70,8 +88,8 @@ function GroupsPage() {
         <GroupDialog
           projectId={projectId}
           group={editingGroup}
-          open={dialogOpen}
-          onOpenChange={setDialogOpen}
+          open={dialog.isOpen}
+          onOpenChange={dialog.onOpenChange}
         />
       )}
     </div>

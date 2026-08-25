@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Settings, Download, Upload } from "lucide-react";
@@ -18,17 +18,23 @@ import { useListFilter, pruneEmpty, type FilterConfig } from "@modulocate/ui/lib
 import { useTableSort, toggleSort, type SortState, type SortDirection } from "@modulocate/ui/lib/use-table-sort";
 import { useTRPC, trpcClient } from "../trpc";
 import { useProject } from "../lib/use-project";
+import { useDialogSearchParam } from "../lib/use-dialog-search-param";
 import { ModuleDialog } from "../components/ModuleDialog";
 import { ModuleContentDialog } from "../components/ModuleContentDialog";
 
 // Optional keys so an empty search/filter/sort state serializes to no query
 // params at all, instead of leaving "?q=&category=&sort=" around by default.
+// moduleId/moduleSettingsId double as the open-state for ModuleContentDialog
+// and ModuleDialog — see use-dialog-search-param.ts. moduleSettingsId uses
+// the sentinel "new" for the create-module flow (no module to key on yet).
 type ModulesSearch = {
   q?: string;
   category?: string[];
   date?: string[];
   sort?: string;
   dir?: SortDirection;
+  moduleId?: string;
+  moduleSettingsId?: string;
 };
 
 function parseStringArray(value: unknown): string[] {
@@ -48,6 +54,8 @@ export const Route = createFileRoute("/data/modules")({
       date: parseStringArray(search.date),
       sort: typeof search.sort === "string" ? search.sort : "",
       dir: parseSortDir(search.dir),
+      moduleId: typeof search.moduleId === "string" ? search.moduleId : "",
+      moduleSettingsId: typeof search.moduleSettingsId === "string" ? search.moduleSettingsId : "",
     }),
 });
 
@@ -69,7 +77,15 @@ function ModulesPage() {
   const queryClient = useQueryClient();
   const { projectId } = useProject();
   const navigate = Route.useNavigate();
-  const { q = "", category = [], date = [], sort: sortKey, dir } = Route.useSearch();
+  const {
+    q = "",
+    category = [],
+    date = [],
+    sort: sortKey,
+    dir,
+    moduleId,
+    moduleSettingsId,
+  } = Route.useSearch();
   const sort: SortState = sortKey && dir ? { key: sortKey, dir } : null;
   const { data: modules, isLoading } = useQuery({
     ...trpc.modules.list.queryOptions({ projectId: projectId! }),
@@ -126,30 +142,12 @@ function ModulesPage() {
   });
 
   function setQuery(value: string) {
-    navigate({
-      search: (prev) =>
-        pruneEmpty({
-          q: value,
-          category: prev.category ?? [],
-          date: prev.date ?? [],
-          sort: prev.sort ?? "",
-          dir: prev.dir,
-        }),
-      replace: true,
-    });
+    navigate({ search: (prev) => pruneEmpty({ ...prev, q: value }), replace: true });
   }
 
   function setFilter(key: string, values: string[]) {
     navigate({
-      search: (prev) =>
-        pruneEmpty({
-          q: prev.q ?? "",
-          category: prev.category ?? [],
-          date: prev.date ?? [],
-          sort: prev.sort ?? "",
-          dir: prev.dir,
-          [key]: values,
-        }) as ModulesSearch,
+      search: (prev) => pruneEmpty({ ...prev, [key]: values }) as ModulesSearch,
       replace: true,
     });
   }
@@ -157,22 +155,40 @@ function ModulesPage() {
   function handleSort(key: string) {
     const next = toggleSort(sort, key);
     navigate({
-      search: (prev) =>
-        pruneEmpty({
-          q: prev.q ?? "",
-          category: prev.category ?? [],
-          date: prev.date ?? [],
-          sort: next?.key ?? "",
-          dir: next?.dir,
-        }),
+      search: (prev) => pruneEmpty({ ...prev, sort: next?.key ?? "", dir: next?.dir }),
       replace: true,
     });
   }
 
-  const [settingsModule, setSettingsModule] = useState<Module | undefined>();
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [contentModule, setContentModule] = useState<Module | undefined>();
-  const [contentOpen, setContentOpen] = useState(false);
+  // Push a new history entry when opening (so the back button closes the
+  // dialog), replace in place for everything else — see useDialogSearchParam.
+  function setModuleId(id: string | undefined, { push }: { push: boolean }) {
+    navigate({ search: (prev) => pruneEmpty({ ...prev, moduleId: id }), replace: !push });
+  }
+
+  function setModuleSettingsId(id: string | undefined, { push }: { push: boolean }) {
+    navigate({ search: (prev) => pruneEmpty({ ...prev, moduleSettingsId: id }), replace: !push });
+  }
+
+  const contentDialog = useDialogSearchParam(moduleId, setModuleId);
+  const settingsDialog = useDialogSearchParam(moduleSettingsId, setModuleSettingsId);
+  const contentModule = modules?.find((m) => m.id === moduleId);
+  const settingsModule =
+    moduleSettingsId && moduleSettingsId !== "new" ? modules?.find((m) => m.id === moduleSettingsId) : undefined;
+
+  // A deep-linked/reloaded moduleId or moduleSettingsId that no longer
+  // matches any module (deleted, or just a bad link) falls back to the
+  // plain list instead of leaving the dialog stuck open with nothing to show.
+  useEffect(() => {
+    if (!modules) return;
+    if (moduleId && !modules.some((m) => m.id === moduleId)) {
+      setModuleId(undefined, { push: false });
+    }
+    if (moduleSettingsId && moduleSettingsId !== "new" && !modules.some((m) => m.id === moduleSettingsId)) {
+      setModuleSettingsId(undefined, { push: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modules, moduleId, moduleSettingsId]);
 
   const [isExporting, setIsExporting] = useState(false);
   const [importExportError, setImportExportError] = useState<string | undefined>();
@@ -237,18 +253,15 @@ function ModulesPage() {
   }
 
   function openCreate() {
-    setSettingsModule(undefined);
-    setSettingsOpen(true);
+    settingsDialog.open("new");
   }
 
   function openSettings(module: Module) {
-    setSettingsModule(module);
-    setSettingsOpen(true);
+    settingsDialog.open(module.id);
   }
 
   function openContent(module: Module) {
-    setContentModule(module);
-    setContentOpen(true);
+    contentDialog.open(module.id);
   }
 
   return (
@@ -361,9 +374,9 @@ function ModulesPage() {
         <ModuleDialog
           projectId={projectId}
           module={settingsModule}
-          open={settingsOpen}
-          onOpenChange={setSettingsOpen}
-          onDuplicated={setSettingsModule}
+          open={settingsDialog.isOpen}
+          onOpenChange={settingsDialog.onOpenChange}
+          onDuplicated={(created) => setModuleSettingsId(created.id, { push: false })}
         />
       )}
 
@@ -371,8 +384,8 @@ function ModulesPage() {
         <ModuleContentDialog
           projectId={projectId}
           module={contentModule}
-          open={contentOpen}
-          onOpenChange={setContentOpen}
+          open={contentDialog.isOpen}
+          onOpenChange={contentDialog.onOpenChange}
         />
       )}
     </div>

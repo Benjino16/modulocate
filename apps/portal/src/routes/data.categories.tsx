@@ -1,14 +1,22 @@
-import { useState } from "react";
+import { useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { Button } from "@modulocate/ui/components/button";
+import { pruneEmpty } from "@modulocate/ui/lib/use-list-filter";
 import { useTRPC } from "../trpc";
 import { useProject } from "../lib/use-project";
+import { useDialogSearchParam } from "../lib/use-dialog-search-param";
 import { CategoryDialog } from "../components/CategoryDialog";
+
+// categoryId doubles as CategoryDialog's open state — see
+// use-dialog-search-param.ts. Sentinel "new" is the create flow.
+type CategoriesSearch = { categoryId?: string };
 
 export const Route = createFileRoute("/data/categories")({
   component: CategoriesPage,
+  validateSearch: (search: Record<string, unknown>): CategoriesSearch =>
+    pruneEmpty({ categoryId: typeof search.categoryId === "string" ? search.categoryId : "" }),
 });
 
 type Category = { id: string; name: string; hiddenInVote: boolean };
@@ -16,6 +24,8 @@ type Category = { id: string; name: string; hiddenInVote: boolean };
 function CategoriesPage() {
   const trpc = useTRPC();
   const { projectId } = useProject();
+  const navigate = Route.useNavigate();
+  const { categoryId } = Route.useSearch();
   const { data: categories, isLoading } = useQuery({
     ...trpc.moduleCategories.list.queryOptions({ projectId: projectId! }),
     enabled: !!projectId,
@@ -35,17 +45,26 @@ function CategoriesPage() {
     }
   }
 
-  const [editingCategory, setEditingCategory] = useState<Category | undefined>();
-  const [dialogOpen, setDialogOpen] = useState(false);
+  function setCategoryId(id: string | undefined, { push }: { push: boolean }) {
+    navigate({ search: (prev) => pruneEmpty({ ...prev, categoryId: id }), replace: !push });
+  }
+
+  const dialog = useDialogSearchParam(categoryId, setCategoryId);
+  const editingCategory =
+    categoryId && categoryId !== "new" ? categories?.find((c) => c.id === categoryId) : undefined;
+
+  useEffect(() => {
+    if (!categories || !categoryId || categoryId === "new") return;
+    if (!categories.some((c) => c.id === categoryId)) setCategoryId(undefined, { push: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categories, categoryId]);
 
   function openCreate() {
-    setEditingCategory(undefined);
-    setDialogOpen(true);
+    dialog.open("new");
   }
 
   function openEdit(category: Category) {
-    setEditingCategory(category);
-    setDialogOpen(true);
+    dialog.open(category.id);
   }
 
   return (
@@ -89,8 +108,8 @@ function CategoriesPage() {
         <CategoryDialog
           projectId={projectId}
           category={editingCategory}
-          open={dialogOpen}
-          onOpenChange={setDialogOpen}
+          open={dialog.isOpen}
+          onOpenChange={dialog.onOpenChange}
         />
       )}
     </div>

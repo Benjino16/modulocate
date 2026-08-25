@@ -1,11 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
   SortableTableHead,
@@ -16,6 +15,7 @@ import { useTableSort, toggleSort, type SortState, type SortDirection } from "@m
 import { cn } from "@modulocate/ui/lib/utils";
 import { useTRPC } from "../trpc";
 import { useProject } from "../lib/use-project";
+import { useDialogSearchParam } from "../lib/use-dialog-search-param";
 import {
   resolveVoteStatus,
   VOTE_STATUS_LABEL,
@@ -29,7 +29,11 @@ import { RegenerateCodeDialog } from "../components/RegenerateCodeDialog";
 
 // Optional keys so an empty search/filter/sort state serializes to no query
 // params at all, instead of leaving "?q=&status=&sort=" around by default.
-type SurveyStudentsSearch = { q?: string; status?: string[]; sort?: string; dir?: SortDirection };
+// studentId doubles as StudentPreferencesDialog's open state — see
+// use-dialog-search-param.ts. Resend/Regenerate are secondary action dialogs
+// nested inside it, not addressed by the URL (same reasoning as confirmation
+// dialogs — nothing worth deep-linking to, see data.modules.tsx discussion).
+type SurveyStudentsSearch = { q?: string; status?: string[]; sort?: string; dir?: SortDirection; studentId?: string };
 
 function parseStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
@@ -47,6 +51,7 @@ export const Route = createFileRoute("/survey/students")({
       status: parseStringArray(search.status),
       sort: typeof search.sort === "string" ? search.sort : "",
       dir: parseSortDir(search.dir),
+      studentId: typeof search.studentId === "string" ? search.studentId : "",
     }),
 });
 
@@ -90,7 +95,7 @@ function SurveyStudentsPage() {
   const trpc = useTRPC();
   const { projectId } = useProject();
   const navigate = Route.useNavigate();
-  const { q = "", status = [], sort: sortKey, dir } = Route.useSearch();
+  const { q = "", status = [], sort: sortKey, dir, studentId } = Route.useSearch();
   // Default: worst-to-best status (same order as before), now just the
   // initial sort — any column stays clickable to override it.
   const sort: SortState = sortKey && dir ? { key: sortKey, dir } : { key: "status", dir: "asc" };
@@ -139,23 +144,12 @@ function SurveyStudentsPage() {
   });
 
   function setQuery(value: string) {
-    navigate({
-      search: (prev) =>
-        pruneEmpty({ q: value, status: prev.status ?? [], sort: prev.sort ?? "", dir: prev.dir }),
-      replace: true,
-    });
+    navigate({ search: (prev) => pruneEmpty({ ...prev, q: value }), replace: true });
   }
 
   function setFilter(key: string, values: string[]) {
     navigate({
-      search: (prev) =>
-        pruneEmpty({
-          q: prev.q ?? "",
-          status: prev.status ?? [],
-          sort: prev.sort ?? "",
-          dir: prev.dir,
-          [key]: values,
-        }) as SurveyStudentsSearch,
+      search: (prev) => pruneEmpty({ ...prev, [key]: values }) as SurveyStudentsSearch,
       replace: true,
     });
   }
@@ -163,19 +157,27 @@ function SurveyStudentsPage() {
   function handleSort(key: string) {
     const next = toggleSort(sort, key);
     navigate({
-      search: (prev) =>
-        pruneEmpty({ q: prev.q ?? "", status: prev.status ?? [], sort: next?.key ?? "", dir: next?.dir }),
+      search: (prev) => pruneEmpty({ ...prev, sort: next?.key ?? "", dir: next?.dir }),
       replace: true,
     });
+  }
+
+  function setStudentId(id: string | undefined, { push }: { push: boolean }) {
+    navigate({ search: (prev) => pruneEmpty({ ...prev, studentId: id }), replace: !push });
   }
 
   // Looked up by id from the live query result (rather than snapshotting the
   // Student object at click time) so the preferences modal picks up changes
   // made while it's open — e.g. regenerating the voting code invalidates
   // `students.list`, and the modal should show the new code immediately.
-  const [selectedStudentId, setSelectedStudentId] = useState<string | undefined>();
-  const selectedStudent = students?.find((student) => student.id === selectedStudentId);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const dialog = useDialogSearchParam(studentId, setStudentId);
+  const selectedStudent = students?.find((student) => student.id === studentId);
+
+  useEffect(() => {
+    if (!students || !studentId) return;
+    if (!students.some((s) => s.id === studentId)) setStudentId(undefined, { push: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [students, studentId]);
 
   const [resendStudent, setResendStudent] = useState<Student | undefined>();
   const [resendDialogOpen, setResendDialogOpen] = useState(false);
@@ -184,8 +186,7 @@ function SurveyStudentsPage() {
   const [regenerateDialogOpen, setRegenerateDialogOpen] = useState(false);
 
   function openStudent(student: Student) {
-    setSelectedStudentId(student.id);
-    setDialogOpen(true);
+    dialog.open(student.id);
   }
 
   function openResend(student: Student) {
@@ -276,8 +277,8 @@ function SurveyStudentsPage() {
         <StudentPreferencesDialog
           projectId={projectId}
           student={selectedStudent}
-          open={dialogOpen}
-          onOpenChange={setDialogOpen}
+          open={dialog.isOpen}
+          onOpenChange={dialog.onOpenChange}
           onResend={() => selectedStudent && openResend(selectedStudent)}
           onRegenerate={() => selectedStudent && openRegenerate(selectedStudent)}
         />
