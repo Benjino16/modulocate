@@ -5,16 +5,33 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
+  SortableTableHead,
 } from "@modulocate/ui/components/table";
+import { SearchFilterBar } from "@modulocate/ui/components/search-filter-bar";
+import { useListFilter, pruneEmpty } from "@modulocate/ui/lib/use-list-filter";
+import { useTableSort, toggleSort, type SortState, type SortDirection } from "@modulocate/ui/lib/use-table-sort";
 import { useTRPC } from "../trpc";
 import { useProject } from "../lib/project-context";
 import { StudentModuleDialog } from "../components/StudentModuleDialog";
 
+// Optional keys so an empty search/sort state serializes to no query params
+// at all, instead of leaving "?q=&sort=" around by default.
+type AdjustmentsStudentsSearch = { q?: string; sort?: string; dir?: SortDirection };
+
+function parseSortDir(value: unknown): SortDirection | undefined {
+  return value === "asc" || value === "desc" ? value : undefined;
+}
+
 export const Route = createFileRoute("/adjustments/students")({
   component: AdjustmentsStudentsPage,
+  validateSearch: (search: Record<string, unknown>): AdjustmentsStudentsSearch =>
+    pruneEmpty({
+      q: typeof search.q === "string" ? search.q : "",
+      sort: typeof search.sort === "string" ? search.sort : "",
+      dir: parseSortDir(search.dir),
+    }),
 });
 
 type Compliance = {
@@ -36,6 +53,9 @@ type Student = {
 function AdjustmentsStudentsPage() {
   const trpc = useTRPC();
   const { projectId } = useProject();
+  const navigate = Route.useNavigate();
+  const { q = "", sort: sortKey, dir } = Route.useSearch();
+  const sort: SortState = sortKey && dir ? { key: sortKey, dir } : null;
 
   const { data: students, isLoading } = useQuery({
     ...trpc.students.list.queryOptions({ projectId: projectId! }),
@@ -47,6 +67,48 @@ function AdjustmentsStudentsPage() {
   });
 
   const complianceByStudent = new Map((compliance ?? []).map((c) => [c.studentId, c]));
+
+  const filteredStudents = useListFilter({
+    items: students ?? [],
+    query: q,
+    searchText: (student) =>
+      `${student.name} ${student.groupName ?? ""} ${complianceByStudent.get(student.id)?.ruleName ?? ""}`,
+    activeFilters: {},
+  });
+  const sortedStudents = useTableSort({
+    items: filteredStudents,
+    sort,
+    sortValue: (student, key) => {
+      const studentCompliance = complianceByStudent.get(student.id);
+      switch (key) {
+        case "name":
+          return student.name;
+        case "group":
+          return student.groupName ?? "";
+        case "rule":
+          return studentCompliance?.ruleName ?? "";
+        case "modules":
+          return studentCompliance?.moduleCountAssigned ?? null;
+        default:
+          return null;
+      }
+    },
+  });
+
+  function setQuery(value: string) {
+    navigate({
+      search: (prev) => pruneEmpty({ q: value, sort: prev.sort ?? "", dir: prev.dir }),
+      replace: true,
+    });
+  }
+
+  function handleSort(key: string) {
+    const next = toggleSort(sort, key);
+    navigate({
+      search: (prev) => pruneEmpty({ q: prev.q ?? "", sort: next?.key ?? "", dir: next?.dir }),
+      replace: true,
+    });
+  }
 
   const [selectedStudent, setSelectedStudent] = useState<Student | undefined>();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -60,23 +122,44 @@ function AdjustmentsStudentsPage() {
     <div className="flex flex-col gap-4">
       <h2 className="text-lg font-semibold">Schüler</h2>
 
+      {!isLoading && !!students?.length && (
+        <SearchFilterBar
+          query={q}
+          onQueryChange={setQuery}
+          searchPlaceholder="Schüler durchsuchen…"
+          activeFilters={{}}
+          onFilterChange={() => {}}
+        />
+      )}
+
       {isLoading && <p className="text-muted-foreground">Lade Schüler…</p>}
       {!isLoading && !students?.length && (
         <p className="text-muted-foreground">Noch keine Schüler angelegt.</p>
       )}
+      {!isLoading && !!students?.length && !filteredStudents.length && (
+        <p className="text-muted-foreground">Keine Schüler entsprechen der Suche.</p>
+      )}
 
-      {!!students?.length && (
+      {!!sortedStudents.length && (
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Klasse</TableHead>
-              <TableHead>Regel</TableHead>
-              <TableHead>Module</TableHead>
+              <SortableTableHead sortKey="name" currentSort={sort} onSort={handleSort}>
+                Name
+              </SortableTableHead>
+              <SortableTableHead sortKey="group" currentSort={sort} onSort={handleSort}>
+                Klasse
+              </SortableTableHead>
+              <SortableTableHead sortKey="rule" currentSort={sort} onSort={handleSort}>
+                Regel
+              </SortableTableHead>
+              <SortableTableHead sortKey="modules" currentSort={sort} onSort={handleSort}>
+                Module
+              </SortableTableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {students.map((student) => (
+            {sortedStudents.map((student) => (
               <TableRow key={student.id} onClick={() => openStudent(student)} className="cursor-pointer">
                 <TableCell className="font-medium">{student.name}</TableCell>
                 <TableCell className="text-muted-foreground">{student.groupName || "–"}</TableCell>

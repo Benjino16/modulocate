@@ -1,6 +1,8 @@
 import * as React from "react"
+import { ChevronDown, ChevronsUpDown, ChevronUp } from "lucide-react"
 
 import { cn } from "@modulocate/ui/lib/utils"
+import type { SortState } from "@modulocate/ui/lib/use-table-sort"
 
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
@@ -66,4 +68,37 @@ function TableCell({ className, ...props }: React.ComponentProps<"td">) {
   )
 }
 
-export { Table, TableHeader, TableBody, TableHead, TableRow, TableCell }
+// Clickable TableHead that toggles sort on click and shows the current
+// direction. Knows nothing about how the sort state is stored (URL search
+// params vs. useState) — pass the current SortState and a click handler.
+function SortableTableHead({
+  sortKey,
+  currentSort,
+  onSort,
+  className,
+  children,
+  ...props
+}: {
+  sortKey: string
+  currentSort: SortState
+  onSort: (key: string) => void
+} & Omit<React.ComponentProps<"th">, "onClick">) {
+  const active = currentSort?.key === sortKey
+  const Icon = active ? (currentSort!.dir === "asc" ? ChevronUp : ChevronDown) : ChevronsUpDown
+
+  return (
+    <TableHead
+      className={cn("cursor-pointer select-none hover:text-foreground", className)}
+      onClick={() => onSort(sortKey)}
+      aria-sort={active ? (currentSort!.dir === "asc" ? "ascending" : "descending") : "none"}
+      {...props}
+    >
+      <span className="inline-flex items-center gap-1">
+        {children}
+        <Icon className={cn("size-3.5", !active && "text-muted-foreground/50")} />
+      </span>
+    </TableHead>
+  )
+}
+
+export { Table, TableHeader, TableBody, TableHead, TableRow, TableCell, SortableTableHead }

@@ -7,22 +7,33 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
+  SortableTableHead,
 } from "@modulocate/ui/components/table";
 import { SearchFilterBar } from "@modulocate/ui/components/search-filter-bar";
 import { useListFilter, pruneEmpty, type FilterConfig } from "@modulocate/ui/lib/use-list-filter";
+import { useTableSort, toggleSort, type SortState, type SortDirection } from "@modulocate/ui/lib/use-table-sort";
 import { useTRPC } from "../trpc";
 import { useProject } from "../lib/project-context";
 import { StudentDialog } from "../components/StudentDialog";
 
-// Optional keys so an empty search/filter state serializes to no query
-// params at all, instead of leaving "?q=&group=" around by default.
-type StudentsSearch = { q?: string; group?: string[]; rule?: string[] };
+// Optional keys so an empty search/filter/sort state serializes to no query
+// params at all, instead of leaving "?q=&group=&sort=" around by default.
+type StudentsSearch = {
+  q?: string;
+  group?: string[];
+  rule?: string[];
+  sort?: string;
+  dir?: SortDirection;
+};
 
 function parseStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
+}
+
+function parseSortDir(value: unknown): SortDirection | undefined {
+  return value === "asc" || value === "desc" ? value : undefined;
 }
 
 export const Route = createFileRoute("/data/students")({
@@ -32,6 +43,8 @@ export const Route = createFileRoute("/data/students")({
       q: typeof search.q === "string" ? search.q : "",
       group: parseStringArray(search.group),
       rule: parseStringArray(search.rule),
+      sort: typeof search.sort === "string" ? search.sort : "",
+      dir: parseSortDir(search.dir),
     }),
 });
 
@@ -50,7 +63,8 @@ function StudentsPage() {
   const trpc = useTRPC();
   const { projectId } = useProject();
   const navigate = Route.useNavigate();
-  const { q = "", group = [], rule = [] } = Route.useSearch();
+  const { q = "", group = [], rule = [], sort: sortKey, dir } = Route.useSearch();
+  const sort: SortState = sortKey && dir ? { key: sortKey, dir } : null;
   const { data: students, isLoading } = useQuery({
     ...trpc.students.list.queryOptions({ projectId: projectId! }),
     enabled: !!projectId,
@@ -86,10 +100,29 @@ function StudentsPage() {
     filters,
     activeFilters,
   });
+  const sortedStudents = useTableSort({
+    items: filteredStudents,
+    sort,
+    sortValue: (student, key) => {
+      switch (key) {
+        case "name":
+          return student.name;
+        case "email":
+          return student.email;
+        case "email2":
+          return student.email2 ?? "";
+        case "group":
+          return student.groupName ?? "";
+        default:
+          return null;
+      }
+    },
+  });
 
   function setQuery(value: string) {
     navigate({
-      search: (prev) => pruneEmpty({ q: value, group: prev.group ?? [], rule: prev.rule ?? [] }),
+      search: (prev) =>
+        pruneEmpty({ q: value, group: prev.group ?? [], rule: prev.rule ?? [], sort: prev.sort ?? "", dir: prev.dir }),
       replace: true,
     });
   }
@@ -97,7 +130,29 @@ function StudentsPage() {
   function setFilter(key: string, values: string[]) {
     navigate({
       search: (prev) =>
-        pruneEmpty({ q: prev.q ?? "", group: prev.group ?? [], rule: prev.rule ?? [], [key]: values }) as StudentsSearch,
+        pruneEmpty({
+          q: prev.q ?? "",
+          group: prev.group ?? [],
+          rule: prev.rule ?? [],
+          sort: prev.sort ?? "",
+          dir: prev.dir,
+          [key]: values,
+        }) as StudentsSearch,
+      replace: true,
+    });
+  }
+
+  function handleSort(key: string) {
+    const next = toggleSort(sort, key);
+    navigate({
+      search: (prev) =>
+        pruneEmpty({
+          q: prev.q ?? "",
+          group: prev.group ?? [],
+          rule: prev.rule ?? [],
+          sort: next?.key ?? "",
+          dir: next?.dir,
+        }),
       replace: true,
     });
   }
@@ -143,18 +198,26 @@ function StudentsPage() {
         <p className="text-muted-foreground">Keine Schüler entsprechen der Suche/den Filtern.</p>
       )}
 
-      {!!filteredStudents.length && (
+      {!!sortedStudents.length && (
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>E-Mail</TableHead>
-              <TableHead>E-Mail (2)</TableHead>
-              <TableHead>Klasse</TableHead>
+              <SortableTableHead sortKey="name" currentSort={sort} onSort={handleSort}>
+                Name
+              </SortableTableHead>
+              <SortableTableHead sortKey="email" currentSort={sort} onSort={handleSort}>
+                E-Mail
+              </SortableTableHead>
+              <SortableTableHead sortKey="email2" currentSort={sort} onSort={handleSort}>
+                E-Mail (2)
+              </SortableTableHead>
+              <SortableTableHead sortKey="group" currentSort={sort} onSort={handleSort}>
+                Klasse
+              </SortableTableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredStudents.map((student) => (
+            {sortedStudents.map((student) => (
               <TableRow
                 key={student.id}
                 onClick={() => openEdit(student)}

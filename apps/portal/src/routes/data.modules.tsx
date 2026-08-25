@@ -4,19 +4,39 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Settings, Download, Upload } from "lucide-react";
 import { moduleImportFile } from "@modulocate/shared";
 import { Button } from "@modulocate/ui/components/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  SortableTableHead,
+} from "@modulocate/ui/components/table";
 import { SearchFilterBar } from "@modulocate/ui/components/search-filter-bar";
 import { useListFilter, pruneEmpty, type FilterConfig } from "@modulocate/ui/lib/use-list-filter";
+import { useTableSort, toggleSort, type SortState, type SortDirection } from "@modulocate/ui/lib/use-table-sort";
 import { useTRPC, trpcClient } from "../trpc";
 import { useProject } from "../lib/project-context";
 import { ModuleDialog } from "../components/ModuleDialog";
 import { ModuleContentDialog } from "../components/ModuleContentDialog";
 
-// Optional keys so an empty search/filter state serializes to no query
-// params at all, instead of leaving "?q=&category=" around by default.
-type ModulesSearch = { q?: string; category?: string[]; date?: string[] };
+// Optional keys so an empty search/filter/sort state serializes to no query
+// params at all, instead of leaving "?q=&category=&sort=" around by default.
+type ModulesSearch = {
+  q?: string;
+  category?: string[];
+  date?: string[];
+  sort?: string;
+  dir?: SortDirection;
+};
 
 function parseStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
+}
+
+function parseSortDir(value: unknown): SortDirection | undefined {
+  return value === "asc" || value === "desc" ? value : undefined;
 }
 
 export const Route = createFileRoute("/data/modules")({
@@ -26,6 +46,8 @@ export const Route = createFileRoute("/data/modules")({
       q: typeof search.q === "string" ? search.q : "",
       category: parseStringArray(search.category),
       date: parseStringArray(search.date),
+      sort: typeof search.sort === "string" ? search.sort : "",
+      dir: parseSortDir(search.dir),
     }),
 });
 
@@ -47,7 +69,8 @@ function ModulesPage() {
   const queryClient = useQueryClient();
   const { projectId } = useProject();
   const navigate = Route.useNavigate();
-  const { q = "", category = [], date = [] } = Route.useSearch();
+  const { q = "", category = [], date = [], sort: sortKey, dir } = Route.useSearch();
+  const sort: SortState = sortKey && dir ? { key: sortKey, dir } : null;
   const { data: modules, isLoading } = useQuery({
     ...trpc.modules.list.queryOptions({ projectId: projectId! }),
     enabled: !!projectId,
@@ -83,10 +106,35 @@ function ModulesPage() {
     filters,
     activeFilters,
   });
+  const sortedModules = useTableSort({
+    items: filteredModules,
+    sort,
+    sortValue: (module, key) => {
+      switch (key) {
+        case "name":
+          return module.name;
+        case "schedule":
+          return module.displayScheduleLabel ?? "";
+        case "max":
+          return module.max;
+        case "teacher":
+          return module.teacher ?? "";
+        default:
+          return null;
+      }
+    },
+  });
 
   function setQuery(value: string) {
     navigate({
-      search: (prev) => pruneEmpty({ q: value, category: prev.category ?? [], date: prev.date ?? [] }),
+      search: (prev) =>
+        pruneEmpty({
+          q: value,
+          category: prev.category ?? [],
+          date: prev.date ?? [],
+          sort: prev.sort ?? "",
+          dir: prev.dir,
+        }),
       replace: true,
     });
   }
@@ -94,7 +142,29 @@ function ModulesPage() {
   function setFilter(key: string, values: string[]) {
     navigate({
       search: (prev) =>
-        pruneEmpty({ q: prev.q ?? "", category: prev.category ?? [], date: prev.date ?? [], [key]: values }) as ModulesSearch,
+        pruneEmpty({
+          q: prev.q ?? "",
+          category: prev.category ?? [],
+          date: prev.date ?? [],
+          sort: prev.sort ?? "",
+          dir: prev.dir,
+          [key]: values,
+        }) as ModulesSearch,
+      replace: true,
+    });
+  }
+
+  function handleSort(key: string) {
+    const next = toggleSort(sort, key);
+    navigate({
+      search: (prev) =>
+        pruneEmpty({
+          q: prev.q ?? "",
+          category: prev.category ?? [],
+          date: prev.date ?? [],
+          sort: next?.key ?? "",
+          dir: next?.dir,
+        }),
       replace: true,
     });
   }
@@ -236,46 +306,55 @@ function ModulesPage() {
         <p className="text-muted-foreground">Keine Module entsprechen der Suche/den Filtern.</p>
       )}
 
-      {!!filteredModules.length && (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
-          {filteredModules.map((module) => (
-            // Not a <button> — it contains the nested settings <button>, and
-            // buttons can't nest. role="button" + keyboard handling keeps it
-            // accessible; group-hover reveals the gear icon.
-            <div
-              key={module.id}
-              role="button"
-              tabIndex={0}
-              onClick={() => openContent(module)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  openContent(module);
-                }
-              }}
-              className="group relative flex cursor-pointer flex-col gap-1 rounded-lg border p-4 text-left transition-colors hover:bg-accent"
-            >
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openSettings(module);
-                }}
-                aria-label="Moduleinstellungen"
-                className="absolute top-2 right-2 rounded-md p-1.5 text-muted-foreground opacity-0 transition-opacity hover:bg-background hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100"
+      {!!sortedModules.length && (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <SortableTableHead sortKey="name" currentSort={sort} onSort={handleSort}>
+                Name
+              </SortableTableHead>
+              <SortableTableHead sortKey="schedule" currentSort={sort} onSort={handleSort}>
+                Termin
+              </SortableTableHead>
+              <SortableTableHead sortKey="max" currentSort={sort} onSort={handleSort}>
+                Max. Teilnehmer
+              </SortableTableHead>
+              <SortableTableHead sortKey="teacher" currentSort={sort} onSort={handleSort}>
+                Lehrer
+              </SortableTableHead>
+              <TableHead className="w-10" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {sortedModules.map((module) => (
+              <TableRow
+                key={module.id}
+                onClick={() => openContent(module)}
+                className="group cursor-pointer"
               >
-                <Settings className="size-4" />
-              </button>
-
-              <h3 className="pr-8 font-semibold">{module.name}</h3>
-              <p className="text-sm text-muted-foreground">
-                {module.displayScheduleLabel || "Kein Termin festgelegt"}
-              </p>
-              <p className="text-sm text-muted-foreground">Max. {module.max} Teilnehmer</p>
-              <p className="text-sm text-muted-foreground">{module.teacher || "Kein Lehrer zugeteilt"}</p>
-            </div>
-          ))}
-        </div>
+                <TableCell className="font-medium">{module.name}</TableCell>
+                <TableCell className="text-muted-foreground">
+                  {module.displayScheduleLabel || "–"}
+                </TableCell>
+                <TableCell className="text-muted-foreground">{module.max}</TableCell>
+                <TableCell className="text-muted-foreground">{module.teacher || "–"}</TableCell>
+                <TableCell>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openSettings(module);
+                    }}
+                    aria-label="Moduleinstellungen"
+                    className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-accent-foreground group-hover:opacity-100 group-focus-within:opacity-100"
+                  >
+                    <Settings className="size-3.5" />
+                  </button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
 
       {projectId && (
