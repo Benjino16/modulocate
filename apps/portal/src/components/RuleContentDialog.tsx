@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@modulocate/ui/components/button";
 import {
@@ -12,6 +12,7 @@ import { Input } from "@modulocate/ui/components/input";
 import { Label } from "@modulocate/ui/components/label";
 import { RichTextEditor } from "@modulocate/ui/components/rich-text-editor";
 import { useTRPC } from "../trpc";
+import { useResetOnOpen } from "../lib/use-reset-on-open";
 
 type RuleSummary = { id: string; name: string };
 
@@ -54,12 +55,10 @@ export function RuleContentDialog({
     enabled: open,
   });
 
-  useEffect(() => {
-    if (open) {
-      setForm(formStateFor(fullRule));
-      setError(undefined);
-    }
-  }, [open, fullRule]);
+  useResetOnOpen(open, [fullRule], () => {
+    setForm(formStateFor(fullRule));
+    setError(undefined);
+  });
 
   const updateRule = useMutation(
     trpc.rules.update.mutationOptions({

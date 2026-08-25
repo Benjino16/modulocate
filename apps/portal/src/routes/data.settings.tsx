@@ -5,7 +5,7 @@ import { Button } from "@modulocate/ui/components/button";
 import { Label } from "@modulocate/ui/components/label";
 import { RichTextEditor } from "@modulocate/ui/components/rich-text-editor";
 import { useTRPC } from "../trpc";
-import { useProject } from "../lib/project-context";
+import { useProject } from "../lib/use-project";
 
 export const Route = createFileRoute("/data/settings")({
   component: SettingsPage,

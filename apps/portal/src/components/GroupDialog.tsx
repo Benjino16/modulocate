@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@modulocate/ui/components/button";
 import {
@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@modulocate/ui/components/select";
 import { useTRPC } from "../trpc";
+import { useResetOnOpen } from "../lib/use-reset-on-open";
 
 type Group = { id: string; name: string; ruleId: string | null };
 
@@ -46,12 +47,10 @@ export function GroupDialog({
   const [form, setForm] = useState<FormState>(() => formStateFor(group));
   const [error, setError] = useState<string | undefined>();
 
-  useEffect(() => {
-    if (open) {
-      setForm(formStateFor(group));
-      setError(undefined);
-    }
-  }, [open, group]);
+  useResetOnOpen(open, [group], () => {
+    setForm(formStateFor(group));
+    setError(undefined);
+  });
 
   const { data: rules } = useQuery({
     ...trpc.rules.list.queryOptions({ projectId }),

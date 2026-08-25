@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@modulocate/ui/components/button";
 import {
@@ -12,6 +12,7 @@ import { Input } from "@modulocate/ui/components/input";
 import { Label } from "@modulocate/ui/components/label";
 import { RichTextEditor } from "@modulocate/ui/components/rich-text-editor";
 import { useTRPC } from "../trpc";
+import { useResetOnOpen } from "../lib/use-reset-on-open";
 
 type Module = {
   id: string;
@@ -50,12 +51,10 @@ export function ModuleContentDialog({
   const [form, setForm] = useState<FormState>(() => formStateFor(module));
   const [error, setError] = useState<string | undefined>();
 
-  useEffect(() => {
-    if (open) {
-      setForm(formStateFor(module));
-      setError(undefined);
-    }
-  }, [open, module]);
+  useResetOnOpen(open, [module], () => {
+    setForm(formStateFor(module));
+    setError(undefined);
+  });
 
   const updateModule = useMutation(
     trpc.modules.update.mutationOptions({

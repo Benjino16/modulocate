@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@modulocate/ui/components/button";
 import { useTRPC } from "../trpc";
-import { useProject } from "../lib/project-context";
+import { useProject } from "../lib/use-project";
 
 export const Route = createFileRoute("/adjustments/")({
   component: AdjustmentsPage,

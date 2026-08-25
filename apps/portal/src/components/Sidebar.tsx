@@ -10,7 +10,7 @@ import {
 } from "@modulocate/ui/components/dropdown-menu";
 import { cn } from "@modulocate/ui/lib/utils";
 import type { ProjectPhase } from "@modulocate/shared";
-import { useProject } from "../lib/project-context";
+import { useProject } from "../lib/use-project";
 import { authClient } from "../lib/auth-client";
 import { ProjectDialog } from "./ProjectDialog";
 

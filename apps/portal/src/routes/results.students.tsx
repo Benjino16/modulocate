@@ -16,7 +16,7 @@ import { useListFilter, pruneEmpty } from "@modulocate/ui/lib/use-list-filter";
 import { useTableSort, toggleSort, type SortState, type SortDirection } from "@modulocate/ui/lib/use-table-sort";
 import { cn } from "@modulocate/ui/lib/utils";
 import { useTRPC } from "../trpc";
-import { useProject } from "../lib/project-context";
+import { useProject } from "../lib/use-project";
 import { resolveResultStatus, RESULT_STATUS_ROW_COLOR, RESULT_STATUS_SORT_ORDER } from "../lib/resultStatus";
 import { ResendResultsDialog } from "../components/ResendResultsDialog";
 

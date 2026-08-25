@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { Button } from "@modulocate/ui/components/button";
 import { useTRPC } from "../trpc";
-import { useProject } from "../lib/project-context";
+import { useProject } from "../lib/use-project";
 import { CategoryDialog } from "../components/CategoryDialog";
 
 export const Route = createFileRoute("/data/categories")({

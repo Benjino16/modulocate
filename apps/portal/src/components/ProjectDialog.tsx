@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@modulocate/ui/components/button";
 import {
@@ -11,6 +11,7 @@ import {
 import { Input } from "@modulocate/ui/components/input";
 import { Label } from "@modulocate/ui/components/label";
 import { useTRPC } from "../trpc";
+import { useResetOnOpen } from "../lib/use-reset-on-open";
 
 export function ProjectDialog({
   open,
@@ -26,12 +27,10 @@ export function ProjectDialog({
   const [name, setName] = useState("");
   const [error, setError] = useState<string | undefined>();
 
-  useEffect(() => {
-    if (open) {
-      setName("");
-      setError(undefined);
-    }
-  }, [open]);
+  useResetOnOpen(open, [], () => {
+    setName("");
+    setError(undefined);
+  });
 
   const createProject = useMutation(
     trpc.projects.create.mutationOptions({

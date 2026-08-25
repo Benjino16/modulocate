@@ -12,7 +12,7 @@ import { SearchFilterBar } from "@modulocate/ui/components/search-filter-bar";
 import { useListFilter, pruneEmpty } from "@modulocate/ui/lib/use-list-filter";
 import { cn } from "@modulocate/ui/lib/utils";
 import { useTRPC } from "../trpc";
-import { useProject } from "../lib/project-context";
+import { useProject } from "../lib/use-project";
 
 type AuditSearch = { q?: string };
 

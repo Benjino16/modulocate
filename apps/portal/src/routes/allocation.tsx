@@ -8,7 +8,7 @@ import { PhaseLayout } from "../components/PhaseLayout";
 import { AllocationRunTile, type AllocationRunSummary } from "../components/AllocationRunTile";
 import { AllocationRunDetailDialog } from "../components/AllocationRunDetailDialog";
 import { useTRPC } from "../trpc";
-import { useProject } from "../lib/project-context";
+import { useProject } from "../lib/use-project";
 
 export const Route = createFileRoute("/allocation")({
   component: AllocationPage,

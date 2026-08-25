@@ -16,7 +16,7 @@ import { useListFilter, pruneEmpty, type FilterConfig } from "@modulocate/ui/lib
 import { useTableSort, toggleSort, type SortState, type SortDirection } from "@modulocate/ui/lib/use-table-sort";
 import { cn } from "@modulocate/ui/lib/utils";
 import { useTRPC } from "../trpc";
-import { useProject } from "../lib/project-context";
+import { useProject } from "../lib/use-project";
 import {
   resolveVoteStatus,
   VOTE_STATUS_LABEL,

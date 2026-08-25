@@ -14,7 +14,7 @@ import { SearchFilterBar } from "@modulocate/ui/components/search-filter-bar";
 import { useListFilter, pruneEmpty } from "@modulocate/ui/lib/use-list-filter";
 import { useTableSort, toggleSort, type SortState, type SortDirection } from "@modulocate/ui/lib/use-table-sort";
 import { useTRPC } from "../trpc";
-import { useProject } from "../lib/project-context";
+import { useProject } from "../lib/use-project";
 import { ModuleRosterDialog } from "../components/ModuleRosterDialog";
 import { CapacityBar } from "../components/CapacityBar";
 

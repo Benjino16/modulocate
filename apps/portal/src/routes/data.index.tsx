@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { BookOpen, Calendar, ScrollText, Settings, Tag, Users, UsersRound } from "lucide-react";
 import { useTRPC } from "../trpc";
-import { useProject } from "../lib/project-context";
+import { useProject } from "../lib/use-project";
 
 export const Route = createFileRoute("/data/")({
   component: DataOverviewPage,

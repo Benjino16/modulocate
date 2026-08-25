@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@modulocate/ui/components/button";
 import {
@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@modulocate/ui/components/select";
 import { useTRPC } from "../trpc";
+import { useResetOnOpen } from "../lib/use-reset-on-open";
 
 type Student = {
   id: string;
@@ -60,12 +61,10 @@ export function StudentDialog({
   const [form, setForm] = useState<FormState>(() => formStateFor(student));
   const [error, setError] = useState<string | undefined>();
 
-  useEffect(() => {
-    if (open) {
-      setForm(formStateFor(student));
-      setError(undefined);
-    }
-  }, [open, student]);
+  useResetOnOpen(open, [student], () => {
+    setForm(formStateFor(student));
+    setError(undefined);
+  });
 
   const { data: groups } = useQuery({
     ...trpc.studentGroups.list.queryOptions({ projectId }),

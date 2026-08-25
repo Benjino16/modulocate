@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@modulocate/ui/components/button";
 import {
@@ -12,6 +12,7 @@ import { Input } from "@modulocate/ui/components/input";
 import { Label } from "@modulocate/ui/components/label";
 import { MultiSelect } from "@modulocate/ui/components/multi-select";
 import { useTRPC } from "../trpc";
+import { useResetOnOpen } from "../lib/use-reset-on-open";
 
 type Module = {
   id: string;
@@ -98,12 +99,10 @@ export function ModuleDialog({
   const scheduleLabelPlaceholder =
     selectedDateLabels.length > 0 ? selectedDateLabels.join(", ") : "z. B. Jeden Montag, Q2 - Mi, Block";
 
-  useEffect(() => {
-    if (open) {
-      setForm(formStateFor(module));
-      setError(undefined);
-    }
-  }, [open, module]);
+  useResetOnOpen(open, [module], () => {
+    setForm(formStateFor(module));
+    setError(undefined);
+  });
 
   const invalidateList = () =>
     queryClient.invalidateQueries({ queryKey: trpc.modules.list.queryKey({ projectId }) });

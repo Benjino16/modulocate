@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@modulocate/ui/components/button";
@@ -20,6 +20,7 @@ import {
   AccordionTrigger,
 } from "@modulocate/ui/components/accordion";
 import { useTRPC } from "../trpc";
+import { useResetOnOpen } from "../lib/use-reset-on-open";
 
 type RuleSummary = { id: string; name: string };
 
@@ -110,13 +111,11 @@ export function RuleDialog({
   });
   const dateOptions = dates?.map((date) => ({ value: date.id, label: date.name })) ?? [];
 
-  useEffect(() => {
-    if (open) {
-      setForm(formStateFor(rule ? fullRule : undefined));
-      setError(undefined);
-      setOpenSubRuleKeys([]);
-    }
-  }, [open, rule, fullRule]);
+  useResetOnOpen(open, [rule, fullRule], () => {
+    setForm(formStateFor(rule ? fullRule : undefined));
+    setError(undefined);
+    setOpenSubRuleKeys([]);
+  });
 
   const invalidateList = () => {
     queryClient.invalidateQueries({ queryKey: trpc.rules.list.queryKey({ projectId }) });

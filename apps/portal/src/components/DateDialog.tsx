@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@modulocate/ui/components/button";
 import {
@@ -11,6 +11,7 @@ import {
 import { Input } from "@modulocate/ui/components/input";
 import { Label } from "@modulocate/ui/components/label";
 import { useTRPC } from "../trpc";
+import { useResetOnOpen } from "../lib/use-reset-on-open";
 
 type EventDate = { id: string; name: string };
 
@@ -30,12 +31,10 @@ export function DateDialog({
   const [name, setName] = useState(date?.name ?? "");
   const [error, setError] = useState<string | undefined>();
 
-  useEffect(() => {
-    if (open) {
-      setName(date?.name ?? "");
-      setError(undefined);
-    }
-  }, [open, date]);
+  useResetOnOpen(open, [date], () => {
+    setName(date?.name ?? "");
+    setError(undefined);
+  });
 
   const invalidateList = () =>
     queryClient.invalidateQueries({ queryKey: trpc.dates.list.queryKey({ projectId }) });

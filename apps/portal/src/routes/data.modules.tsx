@@ -17,7 +17,7 @@ import { SearchFilterBar } from "@modulocate/ui/components/search-filter-bar";
 import { useListFilter, pruneEmpty, type FilterConfig } from "@modulocate/ui/lib/use-list-filter";
 import { useTableSort, toggleSort, type SortState, type SortDirection } from "@modulocate/ui/lib/use-table-sort";
 import { useTRPC, trpcClient } from "../trpc";
-import { useProject } from "../lib/project-context";
+import { useProject } from "../lib/use-project";
 import { ModuleDialog } from "../components/ModuleDialog";
 import { ModuleContentDialog } from "../components/ModuleContentDialog";
 

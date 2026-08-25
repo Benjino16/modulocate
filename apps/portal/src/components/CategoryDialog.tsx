@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@modulocate/ui/components/button";
 import {
@@ -12,6 +12,7 @@ import { Checkbox } from "@modulocate/ui/components/checkbox";
 import { Input } from "@modulocate/ui/components/input";
 import { Label } from "@modulocate/ui/components/label";
 import { useTRPC } from "../trpc";
+import { useResetOnOpen } from "../lib/use-reset-on-open";
 
 type Category = { id: string; name: string; hiddenInVote: boolean };
 
@@ -32,13 +33,11 @@ export function CategoryDialog({
   const [hiddenInVote, setHiddenInVote] = useState(category?.hiddenInVote ?? false);
   const [error, setError] = useState<string | undefined>();
 
-  useEffect(() => {
-    if (open) {
-      setName(category?.name ?? "");
-      setHiddenInVote(category?.hiddenInVote ?? false);
-      setError(undefined);
-    }
-  }, [open, category]);
+  useResetOnOpen(open, [category], () => {
+    setName(category?.name ?? "");
+    setHiddenInVote(category?.hiddenInVote ?? false);
+    setError(undefined);
+  });
 
   const invalidateList = () =>
     queryClient.invalidateQueries({ queryKey: trpc.moduleCategories.list.queryKey({ projectId }) });
