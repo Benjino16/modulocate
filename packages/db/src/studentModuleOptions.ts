@@ -1,7 +1,8 @@
 import { and, eq, inArray } from "drizzle-orm";
 import type { DbExecutor } from "./client";
-import { modules, studentInModule, studentPreferences } from "./schema";
+import { modules, moduleCategories, moduleInCategory, studentInModule, studentPreferences } from "./schema";
 import { resolveStudentEligibility } from "./eligibility";
+import { resolveModuleDisplayScheduleLabels } from "./moduleDisplay";
 
 export interface StudentModuleOption {
   id: string;
@@ -11,6 +12,8 @@ export interface StudentModuleOption {
   studentCount: number;
   preference: number | null;
   assigned: boolean;
+  displayScheduleLabel: string | null;
+  categoryNames: string[];
 }
 
 // Modules a given student is currently allowed to see (their eligible list,
@@ -27,24 +30,31 @@ export async function resolveStudentModuleOptions(
   const eligibleModuleIds = eligibility?.eligibleModuleIds ?? [];
   if (eligibleModuleIds.length === 0) return [];
 
-  const [moduleRows, assignmentRows, ownAssignmentRows, preferenceRows] = await Promise.all([
-    executor
-      .select()
-      .from(modules)
-      .where(and(eq(modules.projectId, projectId), inArray(modules.id, eligibleModuleIds))),
-    executor
-      .select({ moduleId: studentInModule.moduleId })
-      .from(studentInModule)
-      .where(and(eq(studentInModule.projectId, projectId), inArray(studentInModule.moduleId, eligibleModuleIds))),
-    executor
-      .select({ moduleId: studentInModule.moduleId })
-      .from(studentInModule)
-      .where(and(eq(studentInModule.projectId, projectId), eq(studentInModule.studentId, studentId))),
-    executor
-      .select({ moduleId: studentPreferences.moduleId, preference: studentPreferences.preference })
-      .from(studentPreferences)
-      .where(and(eq(studentPreferences.projectId, projectId), eq(studentPreferences.studentId, studentId))),
-  ]);
+  const [moduleRows, assignmentRows, ownAssignmentRows, preferenceRows, displayScheduleLabelByModule, categoryRows] =
+    await Promise.all([
+      executor
+        .select()
+        .from(modules)
+        .where(and(eq(modules.projectId, projectId), inArray(modules.id, eligibleModuleIds))),
+      executor
+        .select({ moduleId: studentInModule.moduleId })
+        .from(studentInModule)
+        .where(and(eq(studentInModule.projectId, projectId), inArray(studentInModule.moduleId, eligibleModuleIds))),
+      executor
+        .select({ moduleId: studentInModule.moduleId })
+        .from(studentInModule)
+        .where(and(eq(studentInModule.projectId, projectId), eq(studentInModule.studentId, studentId))),
+      executor
+        .select({ moduleId: studentPreferences.moduleId, preference: studentPreferences.preference })
+        .from(studentPreferences)
+        .where(and(eq(studentPreferences.projectId, projectId), eq(studentPreferences.studentId, studentId))),
+      resolveModuleDisplayScheduleLabels(executor, eligibleModuleIds),
+      executor
+        .select({ moduleId: moduleInCategory.moduleId, categoryName: moduleCategories.name })
+        .from(moduleInCategory)
+        .innerJoin(moduleCategories, eq(moduleCategories.id, moduleInCategory.categoryId))
+        .where(inArray(moduleInCategory.moduleId, eligibleModuleIds)),
+    ]);
 
   const studentCountByModule = new Map<string, number>();
   for (const row of assignmentRows) {
@@ -52,6 +62,13 @@ export async function resolveStudentModuleOptions(
   }
   const assignedModuleIds = new Set(ownAssignmentRows.map((row) => row.moduleId));
   const preferenceByModule = new Map(preferenceRows.map((row) => [row.moduleId, row.preference]));
+
+  const categoryNamesByModule = new Map<string, string[]>();
+  for (const row of categoryRows) {
+    const list = categoryNamesByModule.get(row.moduleId) ?? [];
+    list.push(row.categoryName);
+    categoryNamesByModule.set(row.moduleId, list);
+  }
 
   const options: StudentModuleOption[] = moduleRows.map((module) => ({
     id: module.id,
@@ -61,6 +78,10 @@ export async function resolveStudentModuleOptions(
     studentCount: studentCountByModule.get(module.id) ?? 0,
     preference: preferenceByModule.get(module.id) ?? null,
     assigned: assignedModuleIds.has(module.id),
+    // Same precedence as loadModules: an explicit scheduleLabel wins over the
+    // derived one from assigned dates.
+    displayScheduleLabel: module.scheduleLabel || displayScheduleLabelByModule.get(module.id) || null,
+    categoryNames: categoryNamesByModule.get(module.id) ?? [],
   }));
 
   return options.sort((a, b) => (a.preference ?? Infinity) - (b.preference ?? Infinity));

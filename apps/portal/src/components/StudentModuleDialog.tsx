@@ -1,5 +1,6 @@
+import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { TriangleAlert, X } from "lucide-react";
+import { Plus, TriangleAlert, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +30,7 @@ export function StudentModuleDialog({
 }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const { data: options, isLoading } = useQuery({
     ...trpc.students.moduleOptions.queryOptions({ projectId, studentId: student?.id ?? "" }),
@@ -69,6 +71,10 @@ export function StudentModuleDialog({
     removeStudent.mutate({ projectId, moduleId, studentId: student.id });
   }
 
+  function openModule(moduleId: string) {
+    navigate({ to: "/adjustments/modules", search: { moduleId } });
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
@@ -102,11 +108,17 @@ export function StudentModuleDialog({
           <ul className="flex flex-col gap-1">
             {options.map((module) => {
               const label = (
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="w-5 shrink-0 text-right text-muted-foreground tabular-nums">
-                    {module.preference ?? "–"}.
-                  </span>
-                  <span className="truncate font-medium">{module.name}</span>
+                <div className="flex flex-col gap-0.5">
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="w-5 shrink-0 text-right text-muted-foreground tabular-nums">
+                      {module.preference ?? "–"}.
+                    </span>
+                    <span className="truncate font-medium">{module.name}</span>
+                  </div>
+                  <div className="truncate pl-7 text-xs text-muted-foreground">
+                    {module.displayScheduleLabel || "Kein Termin festgelegt"}
+                    {module.categoryNames.length > 0 && ` · ${module.categoryNames.join(", ")}`}
+                  </div>
                 </div>
               );
               const bar = (
@@ -123,24 +135,16 @@ export function StudentModuleDialog({
                     module.assigned && "bg-success/15 dark:bg-success/25",
                   )}
                 >
-                  {module.assigned ? (
-                    <div className="flex min-w-0 flex-1 flex-col gap-1 py-0.5">
-                      {label}
-                      {bar}
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => handleAssign(module.id, module.name)}
-                      disabled={isPending}
-                      className="flex min-w-0 flex-1 flex-col gap-1 rounded-md py-0.5 text-left transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-50"
-                    >
-                      {label}
-                      {bar}
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => openModule(module.id)}
+                    className="flex min-w-0 flex-1 flex-col gap-1 rounded-md py-0.5 text-left transition-colors hover:bg-accent"
+                  >
+                    {label}
+                    {bar}
+                  </button>
 
-                  {module.assigned && (
+                  {module.assigned ? (
                     <button
                       type="button"
                       onClick={() => handleRemove(module.id, module.name)}
@@ -149,6 +153,16 @@ export function StudentModuleDialog({
                       className="shrink-0 rounded-md p-1.5 text-destructive transition-colors hover:bg-destructive hover:text-white disabled:pointer-events-none disabled:opacity-50"
                     >
                       <X className="size-4" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleAssign(module.id, module.name)}
+                      disabled={isPending}
+                      aria-label={`${module.name} zuweisen`}
+                      className="shrink-0 rounded-md p-1.5 text-success transition-colors hover:bg-success hover:text-white disabled:pointer-events-none disabled:opacity-50"
+                    >
+                      <Plus className="size-4" />
                     </button>
                   )}
                 </li>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import {
@@ -47,6 +48,7 @@ export function ModuleRosterDialog({
 }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   // Radix accordion value, not a boolean: "" when collapsed, "waitlist" when
   // open. Drives the waitlist query's `enabled` too, so it's only fetched
   // once someone actually expands the section.
@@ -75,6 +77,10 @@ export function ModuleRosterDialog({
       },
     }),
   );
+
+  function openStudent(student: RosterStudent) {
+    navigate({ to: "/adjustments/students", search: { studentId: student.studentId } });
+  }
 
   return (
     <Dialog
@@ -105,6 +111,7 @@ export function ModuleRosterDialog({
         {!!roster?.length && (
           <StudentList
             students={roster}
+            onSelect={openStudent}
             onRemove={
               module
                 ? (student) => {
@@ -129,7 +136,7 @@ export function ModuleRosterDialog({
                   Kein Schüler hat dieses Modul gerankt, ohne einen Platz zu bekommen.
                 </p>
               )}
-              {!!waitlist?.length && <StudentList students={waitlist} />}
+              {!!waitlist?.length && <StudentList students={waitlist} onSelect={openStudent} />}
             </AccordionContent>
           </AccordionItem>
         </Accordion>
@@ -140,10 +147,12 @@ export function ModuleRosterDialog({
 
 function StudentList({
   students,
+  onSelect,
   onRemove,
   removePending,
 }: {
   students: RosterStudent[];
+  onSelect: (student: RosterStudent) => void;
   onRemove?: (student: RosterStudent) => void;
   removePending?: boolean;
 }) {
@@ -154,7 +163,11 @@ function StudentList({
           key={student.studentId}
           className="flex items-center justify-between gap-2 border-b py-2 last:border-0"
         >
-          <div className="flex min-w-0 items-center gap-2 text-sm">
+          <button
+            type="button"
+            onClick={() => onSelect(student)}
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-md py-0.5 text-left text-sm transition-colors hover:bg-accent"
+          >
             <span className="w-5 shrink-0 text-right text-muted-foreground tabular-nums">
               {student.preference ?? "–"}.
             </span>
@@ -172,7 +185,7 @@ function StudentList({
                 {student.ruleName ?? "Regel überschrieben"}
               </span>
             )}
-          </div>
+          </button>
 
           {onRemove && (
             <button
