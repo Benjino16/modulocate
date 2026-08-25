@@ -8,6 +8,8 @@ import {
   rules,
   studentGroups,
   studentInGroup,
+  studentInModule,
+  studentPreferences,
   students,
   resolveRuleCompliance,
   resolveStudentModuleOptions,
@@ -23,7 +25,7 @@ import { projectScoped, type DbExecutor } from "./shared";
 // explicit executor (db or an open tx) so callers inside a transaction read
 // their own uncommitted writes instead of racing the outer connection.
 async function loadStudents(executor: DbExecutor, projectId: string, ids?: string[]) {
-  return executor
+  const rows = await executor
     .select({
       id: students.id,
       projectId: students.projectId,
@@ -50,6 +52,57 @@ async function loadStudents(executor: DbExecutor, projectId: string, ids?: strin
         ? and(eq(students.projectId, projectId), inArray(students.id, ids))
         : eq(students.projectId, projectId),
     );
+
+  // Mean (not median) preference rank across each student's assigned
+  // modules — unlike the module list's median, an outlier module (a student
+  // stuck with a low-ranked pick) should visibly pull this up rather than
+  // being shrugged off, since the point here is to surface exactly those
+  // students. Only counts modules the student actually ranked; manual
+  // assignments without a recorded preference are left out rather than
+  // skewing the average as "unranked". Skipped entirely when there are no
+  // students, both to avoid an unnecessary query and to keep the mapped
+  // return type (below) identical on every path.
+  const preferencesByStudent = new Map<string, number[]>();
+  if (rows.length > 0) {
+    const preferenceRows = await executor
+      .select({
+        studentId: studentInModule.studentId,
+        preference: studentPreferences.preference,
+      })
+      .from(studentInModule)
+      .innerJoin(
+        studentPreferences,
+        and(
+          eq(studentPreferences.studentId, studentInModule.studentId),
+          eq(studentPreferences.moduleId, studentInModule.moduleId),
+        ),
+      )
+      .where(
+        and(
+          eq(studentInModule.projectId, projectId),
+          inArray(
+            studentInModule.studentId,
+            rows.map((row) => row.id),
+          ),
+        ),
+      );
+
+    for (const row of preferenceRows) {
+      const list = preferencesByStudent.get(row.studentId) ?? [];
+      list.push(row.preference);
+      preferencesByStudent.set(row.studentId, list);
+    }
+  }
+
+  return rows.map((student) => ({
+    ...student,
+    averagePreference: average(preferencesByStudent.get(student.id) ?? []),
+  }));
+}
+
+function average(values: number[]): number | null {
+  if (values.length === 0) return null;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
 function generateSignInCode(): string {

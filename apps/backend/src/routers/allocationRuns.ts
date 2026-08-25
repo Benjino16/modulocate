@@ -140,6 +140,7 @@ export const allocationRunsRouter = router({
       }
 
       const assignments = run.result.assignments;
+      const moduleDemand = run.result.metrics.moduleDemand;
       await db.transaction(async (tx) => {
         const [project] = await tx.select().from(projects).where(eq(projects.id, input.projectId));
         if (!project) throw new TRPCError({ code: "NOT_FOUND" });
@@ -159,6 +160,17 @@ export const allocationRunsRouter = router({
               projectId: input.projectId,
             })),
           );
+        }
+
+        // Snapshot each module's algorithm-side demand as of this run — see
+        // the `demand` column comment in schema.ts. Intentionally not
+        // recomputed anywhere else, so later manual reassignments don't
+        // shift it.
+        for (const [moduleId, demand] of Object.entries(moduleDemand)) {
+          await tx
+            .update(modules)
+            .set({ demand: demand.rejections })
+            .where(eq(modules.id, moduleId));
         }
 
         await tx

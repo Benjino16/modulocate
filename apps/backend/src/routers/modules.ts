@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { moduleCreateInput, moduleUpdateInput, moduleImportFile } from "@modulocate/shared";
 import {
   db,
@@ -398,6 +398,46 @@ export const modulesRouter = router({
         .where(and(eq(studentInModule.moduleId, input.moduleId), eq(studentInModule.projectId, input.projectId)));
 
       return rows.sort((a, b) => (a.preference ?? Infinity) - (b.preference ?? Infinity));
+    }),
+
+  // Students who ranked this module but didn't get in — the roster dialog's
+  // collapsible "Warteliste" section. Driven off studentPreferences (not
+  // studentInModule), left-joined against studentInModule to exclude anyone
+  // who did make it in; preference is never null here since every row starts
+  // from an actual ranking, unlike `roster` above.
+  waitlist: staffProcedure
+    .input(projectScoped.extend({ moduleId: z.uuid() }))
+    .query(async ({ input }) => {
+      const rows = await db
+        .select({
+          studentId: students.id,
+          name: students.name,
+          ruleId: students.ruleId,
+          ruleName: rules.name,
+          groupName: studentGroups.name,
+          preference: studentPreferences.preference,
+        })
+        .from(studentPreferences)
+        .innerJoin(students, eq(students.id, studentPreferences.studentId))
+        .leftJoin(rules, eq(rules.id, students.ruleId))
+        .leftJoin(studentInGroup, eq(studentInGroup.studentId, students.id))
+        .leftJoin(studentGroups, eq(studentGroups.id, studentInGroup.groupId))
+        .leftJoin(
+          studentInModule,
+          and(
+            eq(studentInModule.studentId, students.id),
+            eq(studentInModule.moduleId, studentPreferences.moduleId),
+          ),
+        )
+        .where(
+          and(
+            eq(studentPreferences.moduleId, input.moduleId),
+            eq(studentPreferences.projectId, input.projectId),
+            isNull(studentInModule.studentId),
+          ),
+        );
+
+      return rows.sort((a, b) => a.preference - b.preference);
     }),
 
   // Manually assigns one student to the module (e.g. from the Anpassungen

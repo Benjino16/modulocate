@@ -163,6 +163,13 @@ export const modules = pgTable("modules", {
   pictureUrl: text("picture_url"),
   min: integer("min").notNull(),
   max: integer("max").notNull(),
+  // Algorithm-side demand snapshot (AllocationModuleDemand.rejections) from
+  // whichever run was last loaded into this project — how often the
+  // allocator turned a student away from this module for lack of capacity,
+  // not how many students ranked it #1. Written once per `load` and never
+  // recomputed afterwards, so manual post-load reassignments don't change it;
+  // it stays a snapshot of demand at load time, not a live count.
+  demand: integer("demand"),
   // short freeform display string ("Jeden Montag", "Q2 - Mi", "Block") for the
   // module tile — deliberately per-module free text, since it's also where
   // one-off deviations from the norm get written down

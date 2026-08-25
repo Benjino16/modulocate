@@ -48,6 +48,7 @@ type Student = {
   id: string;
   name: string;
   groupName: string | null;
+  averagePreference: number | null;
 };
 
 function AdjustmentsStudentsPage() {
@@ -89,6 +90,8 @@ function AdjustmentsStudentsPage() {
           return studentCompliance?.ruleName ?? "";
         case "modules":
           return studentCompliance?.moduleCountAssigned ?? null;
+        case "averagePreference":
+          return student.averagePreference;
         default:
           return null;
       }
@@ -156,6 +159,14 @@ function AdjustmentsStudentsPage() {
               <SortableTableHead sortKey="modules" currentSort={sort} onSort={handleSort}>
                 Module
               </SortableTableHead>
+              <SortableTableHead
+                sortKey="averagePreference"
+                currentSort={sort}
+                onSort={handleSort}
+                title="Durchschnitt der Präferenz-Ränge der zugewiesenen Module (1 = Erstwunsch) – reagiert stärker auf einzelne Ausreißer-Module als der Median"
+              >
+                Ø Prio
+              </SortableTableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -165,6 +176,9 @@ function AdjustmentsStudentsPage() {
                 <TableCell className="text-muted-foreground">{student.groupName || "–"}</TableCell>
                 <RuleCell compliance={complianceByStudent.get(student.id)} />
                 <ModuleCountCell compliance={complianceByStudent.get(student.id)} />
+                <TableCell className="text-muted-foreground">
+                  {student.averagePreference !== null ? student.averagePreference.toFixed(1) : "–"}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>

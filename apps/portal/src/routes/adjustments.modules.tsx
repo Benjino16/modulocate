@@ -45,6 +45,7 @@ type Module = {
   max: number;
   studentCount: number;
   medianPreference: number | null;
+  demand: number | null;
 };
 
 function AdjustmentsModulesPage() {
@@ -80,6 +81,8 @@ function AdjustmentsModulesPage() {
           return fillRatio(module);
         case "medianPreference":
           return module.medianPreference;
+        case "demand":
+          return module.demand;
         default:
           return null;
       }
@@ -153,6 +156,14 @@ function AdjustmentsModulesPage() {
               >
                 Median-Prio
               </SortableTableHead>
+              <SortableTableHead
+                sortKey="demand"
+                currentSort={sort}
+                onSort={handleSort}
+                title="Anzahl Schüler, die der Algorithmus beim letzten Zuteilungslauf mangels Kapazität für dieses Modul abgelehnt hat"
+              >
+                Nachfrage
+              </SortableTableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -169,6 +180,7 @@ function AdjustmentsModulesPage() {
                 <TableCell className="text-muted-foreground">
                   {module.medianPreference ?? "–"}
                 </TableCell>
+                <TableCell className="text-muted-foreground">{module.demand ?? "–"}</TableCell>
               </TableRow>
             ))}
           </TableBody>
