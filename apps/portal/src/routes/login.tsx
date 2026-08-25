@@ -11,6 +11,7 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const navigate = useNavigate();
+  const { refetch: refetchSession } = authClient.useSession();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -21,11 +22,16 @@ function LoginPage() {
     setError(null);
     setIsSubmitting(true);
     const { error } = await authClient.signIn.email({ email, password });
-    setIsSubmitting(false);
     if (error) {
+      setIsSubmitting(false);
       setError(error.message ?? "Anmeldung fehlgeschlagen.");
       return;
     }
+    // AuthGuard reads the same session store on mount; without an explicit
+    // refetch here it can still see the pre-login cached value and bounce
+    // back to /login, forcing a second submit before the redirect sticks.
+    await refetchSession();
+    setIsSubmitting(false);
     navigate({ to: "/" });
   }
 
