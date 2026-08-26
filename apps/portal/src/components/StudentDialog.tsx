@@ -26,7 +26,9 @@ type Student = {
   email: string;
   email2: string | null;
   groupId: string | null;
-  ruleId: string | null;
+  // The student's own rule override, not their effective (possibly
+  // group-inherited) rule — this form edits the override itself.
+  ownRuleId: string | null;
 };
 
 const NO_GROUP = "none";
@@ -41,7 +43,7 @@ function formStateFor(student: Student | undefined): FormState {
     email: student.email,
     email2: student.email2 ?? "",
     groupId: student.groupId ?? NO_GROUP,
-    ruleId: student.ruleId ?? NO_RULE,
+    ruleId: student.ownRuleId ?? NO_RULE,
   };
 }
 

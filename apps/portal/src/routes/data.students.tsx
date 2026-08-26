@@ -62,6 +62,8 @@ type Student = {
   groupName: string | null;
   ruleId: string | null;
   ruleName: string | null;
+  ownRuleId: string | null;
+  ownRuleName: string | null;
 };
 
 function StudentsPage() {
@@ -91,6 +93,10 @@ function StudentsPage() {
       match: (student, selected) => !!student.groupId && selected.includes(student.groupId),
     },
     {
+      // Matches the student's effective rule (own override, or their
+      // group's rule when they don't have one) — not just an explicit
+      // per-student override, so filtering by a rule also surfaces students
+      // who only carry it via their class.
       key: "rule",
       label: "Regel",
       options: (rules ?? []).map((r) => ({ value: r.id, label: r.name })),
@@ -222,12 +228,12 @@ function StudentsPage() {
                 <TableCell className="text-muted-foreground">{student.email2 || "–"}</TableCell>
                 <TableCell className="text-muted-foreground">
                   {student.groupName || "–"}
-                  {student.ruleId && (
+                  {student.ownRuleId && (
                     <span
                       className="ml-2 rounded-sm bg-secondary px-1.5 py-0.5 text-xs font-medium text-secondary-foreground"
                       title={
-                        student.ruleName
-                          ? `Regel für diesen Schüler überschrieben: ${student.ruleName}`
+                        student.ownRuleName
+                          ? `Regel für diesen Schüler überschrieben: ${student.ownRuleName}`
                           : "Regel für diesen Schüler überschrieben"
                       }
                     >

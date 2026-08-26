@@ -9,6 +9,7 @@ const tabs = [
   { to: "/adjustments", label: "Anpassungen" },
   { to: "/adjustments/modules", label: "Module" },
   { to: "/adjustments/students", label: "Schüler" },
+  { to: "/adjustments/rules", label: "Regeln" },
 ];
 
 function AdjustmentsLayout() {

@@ -9,6 +9,11 @@ import {
   categoryInSubRule,
   ruleBlockedCategory,
   ruleBlockedDate,
+  students,
+  studentGroups,
+  studentInGroup,
+  studentInModule,
+  studentPreferences,
   type DbExecutor,
 } from "@modulocate/db";
 import { router, staffProcedure } from "../trpc";
@@ -74,6 +79,68 @@ async function loadRules(executor: DbExecutor, projectId: string, ids?: string[]
     blockedDateIdsByRule.set(row.ruleId, list);
   }
 
+  // Students carrying each rule, and the mean preference rank across their
+  // assigned modules — pooled over every student with the rule (not an
+  // average of per-student averages), so a rule with more students weighs
+  // proportionally more. Same "ranked but not necessarily assigned by
+  // choice" caveat as students.ts's averagePreference: only counts modules
+  // the student actually ranked, and only students that carry this rule.
+  //
+  // "Carries this rule" follows the same student.ruleId ?? group.ruleId
+  // fallback used everywhere else (resolveStudentEligibility, allocationInput,
+  // resolveRuleCompliance) — a student's own rule overrides their group's,
+  // but a student with no rule of their own still inherits their group's.
+  // Pulled project-wide (not filtered by ruleIds up front) since a student
+  // can only reach one of the requested rules via their group, which an
+  // inArray(students.ruleId, ruleIds) filter would miss entirely.
+  const studentRows = await executor
+    .select({ id: students.id, ruleId: students.ruleId, groupRuleId: studentGroups.ruleId })
+    .from(students)
+    .leftJoin(studentInGroup, eq(studentInGroup.studentId, students.id))
+    .leftJoin(studentGroups, eq(studentGroups.id, studentInGroup.groupId))
+    .where(eq(students.projectId, projectId));
+
+  const ruleIdByStudent = new Map<string, string | null>(
+    studentRows.map((row) => [row.id, row.ruleId ?? row.groupRuleId ?? null]),
+  );
+  const studentIdsByRule = new Map<string, string[]>();
+  for (const [studentId, ruleId] of ruleIdByStudent) {
+    if (!ruleId) continue;
+    const list = studentIdsByRule.get(ruleId) ?? [];
+    list.push(studentId);
+    studentIdsByRule.set(ruleId, list);
+  }
+
+  const studentIdsWithRule = [...ruleIdByStudent.entries()]
+    .filter(([, ruleId]) => ruleId !== null)
+    .map(([studentId]) => studentId);
+
+  const preferenceRows = studentIdsWithRule.length
+    ? await executor
+        .select({
+          studentId: studentInModule.studentId,
+          preference: studentPreferences.preference,
+        })
+        .from(studentInModule)
+        .innerJoin(
+          studentPreferences,
+          and(
+            eq(studentPreferences.studentId, studentInModule.studentId),
+            eq(studentPreferences.moduleId, studentInModule.moduleId),
+          ),
+        )
+        .where(and(eq(studentInModule.projectId, projectId), inArray(studentInModule.studentId, studentIdsWithRule)))
+    : [];
+
+  const preferencesByRule = new Map<string, number[]>();
+  for (const row of preferenceRows) {
+    const ruleId = ruleIdByStudent.get(row.studentId);
+    if (!ruleId) continue;
+    const list = preferencesByRule.get(ruleId) ?? [];
+    list.push(row.preference);
+    preferencesByRule.set(ruleId, list);
+  }
+
   return ruleRows.map((rule) => ({
     id: rule.id,
     projectId: rule.projectId,
@@ -84,7 +151,14 @@ async function loadRules(executor: DbExecutor, projectId: string, ids?: string[]
     subRules: subRulesByRule.get(rule.id) ?? [],
     blockedCategoryIds: blockedCategoryIdsByRule.get(rule.id) ?? [],
     blockedDateIds: blockedDateIdsByRule.get(rule.id) ?? [],
+    studentCount: studentIdsByRule.get(rule.id)?.length ?? 0,
+    averagePreference: average(preferencesByRule.get(rule.id) ?? []),
   }));
+}
+
+function average(values: number[]): number | null {
+  if (values.length === 0) return null;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
 export const rulesRouter = router({
@@ -165,6 +239,8 @@ export const rulesRouter = router({
           })),
           blockedCategoryIds: input.blockedCategoryIds,
           blockedDateIds: input.blockedDateIds,
+          studentCount: 0,
+          averagePreference: null,
         };
       });
     }),

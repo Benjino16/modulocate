@@ -38,20 +38,31 @@ async function loadStudents(executor: DbExecutor, projectId: string, ids?: strin
       voteOpenedAt: students.voteOpenedAt,
       voteSubmittedAt: students.voteSubmittedAt,
       resultsSentAt: students.resultsSentAt,
-      ruleId: students.ruleId,
-      ruleName: rules.name,
+      ownRuleId: students.ruleId,
       groupId: studentGroups.id,
       groupName: studentGroups.name,
+      groupRuleId: studentGroups.ruleId,
     })
     .from(students)
     .leftJoin(studentInGroup, eq(studentInGroup.studentId, students.id))
     .leftJoin(studentGroups, eq(studentGroups.id, studentInGroup.groupId))
-    .leftJoin(rules, eq(rules.id, students.ruleId))
     .where(
       ids
         ? and(eq(students.projectId, projectId), inArray(students.id, ids))
         : eq(students.projectId, projectId),
     );
+
+  // A student's own rule (ownRuleId) overrides their group's rule
+  // (groupRuleId) — same student.ruleId ?? group.ruleId fallback used
+  // everywhere else (resolveStudentEligibility, allocationInput,
+  // resolveRuleCompliance). `ruleId`/`ruleName` below is this *effective*
+  // rule; `ownRuleId`/`ownRuleName` stay available separately for the two
+  // places that specifically care about the explicit override (the edit
+  // dialog's own-rule select, and the "Regel überschrieben" badges).
+  const ruleRows = rows.length
+    ? await executor.select({ id: rules.id, name: rules.name }).from(rules).where(eq(rules.projectId, projectId))
+    : [];
+  const ruleNameById = new Map(ruleRows.map((rule) => [rule.id, rule.name]));
 
   // Mean (not median) preference rank across each student's assigned
   // modules — unlike the module list's median, an outlier module (a student
@@ -94,10 +105,18 @@ async function loadStudents(executor: DbExecutor, projectId: string, ids?: strin
     }
   }
 
-  return rows.map((student) => ({
-    ...student,
-    averagePreference: average(preferencesByStudent.get(student.id) ?? []),
-  }));
+  return rows.map((row) => {
+    const { ownRuleId, groupRuleId, ...student } = row;
+    const effectiveRuleId = ownRuleId ?? groupRuleId ?? null;
+    return {
+      ...student,
+      ruleId: effectiveRuleId,
+      ruleName: effectiveRuleId ? (ruleNameById.get(effectiveRuleId) ?? null) : null,
+      ownRuleId,
+      ownRuleName: ownRuleId ? (ruleNameById.get(ownRuleId) ?? null) : null,
+      averagePreference: average(preferencesByStudent.get(row.id) ?? []),
+    };
+  });
 }
 
 function average(values: number[]): number | null {
