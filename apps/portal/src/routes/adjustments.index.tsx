@@ -26,6 +26,17 @@ function AdjustmentsPage() {
   function handleFinalize() {
     if (!projectId) return;
     setError(undefined);
+
+    if (project?.phase === "allocating") {
+      if (
+        !window.confirm(
+          "Achtung: Die Umfrage ist bereits geschlossen, das Projekt befindet sich aber noch in Phase \"Zuteilung\" — der zuletzt geladene Durchlauf wurde vermutlich berechnet, während die Umfrage noch offen war. Seither könnten Schüler neu abgestimmt haben, wodurch die geladene Zuteilung veraltet wäre. Trotzdem fortfahren?",
+        )
+      ) {
+        return;
+      }
+    }
+
     if (
       !window.confirm(
         "Zuteilung jetzt finalisieren? Die Ergebnisse werden damit gesperrt. Der Versand an die Schüler erfolgt separat auf der Ergebnisse-Seite.",
@@ -44,7 +55,7 @@ function AdjustmentsPage() {
         Zuteilung händisch nachtragen. Die Modul-Auslastung findet sich im Tab „Module“.
       </p>
 
-      {project?.phase === "reviewing" && (
+      {(project?.phase === "reviewing" || project?.phase === "allocating") && (
         <Button className="mt-4" onClick={handleFinalize} disabled={publishResults.isPending}>
           Finalisieren
         </Button>

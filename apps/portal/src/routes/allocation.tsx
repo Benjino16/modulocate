@@ -32,7 +32,8 @@ function AllocationPage() {
   const { runId } = Route.useSearch();
   const { projects, projectId } = useProject();
   const project = projects.find((p) => p.id === projectId);
-  const canStartRun = project?.phase === "allocating" || project?.phase === "reviewing";
+  const canStartRun =
+    project?.phase === "voting" || project?.phase === "allocating" || project?.phase === "reviewing";
 
   const [prioPercent, setPrioPercent] = useState("20");
   const [seed, setSeed] = useState("");
@@ -145,7 +146,7 @@ function AllocationPage() {
 
       {projectId && !canStartRun && (
         <p className="mt-2 text-sm text-muted-foreground">
-          Durchläufe sind nur während der Zuteilungs- oder Anpassungs-Phase möglich.
+          Durchläufe sind nur während der Umfrage-, Zuteilungs- oder Anpassungs-Phase möglich.
         </p>
       )}
 

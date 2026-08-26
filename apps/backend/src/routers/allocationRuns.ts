@@ -125,9 +125,13 @@ export const allocationRunsRouter = router({
   // Planning.md Phase 4: "the admin selects a run from Redis ... and loads
   // it into the production DB". Completely replaces student_in_module for
   // this project — the portal warns the admin before calling this, since
-  // any manual corrections already made are lost. First load of a project
-  // also flips the phase allocating -> reviewing (planning.md: "Phase 4 ...
-  // begins" here); re-loading a different run while already reviewing is
+  // any manual corrections already made are lost. Also allowed while the
+  // survey is still open ("voting"), so an admin can dry-run/load ahead of
+  // closing — the phase intentionally stays put in that case (still
+  // "voting"), since the loaded data may go stale the moment the phase
+  // flips to "allocating" and is superseded by a fresh run. Loading while
+  // "allocating" flips the phase to "reviewing" (planning.md: "Phase 4 ...
+  // begins" here); re-loading a different run while already "reviewing" is
   // explicitly allowed by planning.md and is a no-op on the phase.
   load: staffProcedure
     .input(projectScoped.extend({ id: z.uuid() }))
@@ -146,10 +150,14 @@ export const allocationRunsRouter = router({
       await db.transaction(async (tx) => {
         const [project] = await tx.select().from(projects).where(eq(projects.id, input.projectId));
         if (!project) throw new TRPCError({ code: "NOT_FOUND" });
-        if (project.phase !== projectPhase.enum.allocating && project.phase !== projectPhase.enum.reviewing) {
+        if (
+          project.phase !== projectPhase.enum.voting &&
+          project.phase !== projectPhase.enum.allocating &&
+          project.phase !== projectPhase.enum.reviewing
+        ) {
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
-            message: `Ein Durchlauf kann nur in Phase "${projectPhase.enum.allocating}" oder "${projectPhase.enum.reviewing}" geladen werden (aktuell: "${project.phase}").`,
+            message: `Ein Durchlauf kann nur in Phase "${projectPhase.enum.voting}", "${projectPhase.enum.allocating}" oder "${projectPhase.enum.reviewing}" geladen werden (aktuell: "${project.phase}").`,
           });
         }
 
@@ -175,10 +183,12 @@ export const allocationRunsRouter = router({
             .where(eq(modules.id, moduleId));
         }
 
-        await tx
-          .update(projects)
-          .set({ phase: projectPhase.enum.reviewing })
-          .where(eq(projects.id, input.projectId));
+        if (project.phase === projectPhase.enum.allocating) {
+          await tx
+            .update(projects)
+            .set({ phase: projectPhase.enum.reviewing })
+            .where(eq(projects.id, input.projectId));
+        }
       });
 
       return { assignedCount: assignments.length };

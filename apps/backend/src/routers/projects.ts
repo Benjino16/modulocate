@@ -90,15 +90,19 @@ export const projectsRouter = router({
   // reviewing -> published (see planning.md Phase 5 "Publication"). Locks the
   // allocation in — sending results is a separate, explicit step
   // (students.sendVotingResults; see the portal's "Ergebnisse verschicken"
-  // button), not a side effect of finalizing.
+  // button), not a side effect of finalizing. Also allowed from "allocating":
+  // an admin may have loaded a run while the survey was still open, then
+  // closed it, landing back in "allocating" instead of "reviewing" (see
+  // allocationRuns.load) — the portal shows an extra warning for that case
+  // since the loaded data may predate the survey close.
   publishResults: staffProcedure.input(projectScoped).mutation(async ({ input }) => {
     const { project } = await db.transaction(async (tx) => {
       const [project] = await tx.select().from(projects).where(eq(projects.id, input.projectId));
       if (!project) throw new TRPCError({ code: "NOT_FOUND" });
-      if (project.phase !== projectPhase.enum.reviewing) {
+      if (project.phase !== projectPhase.enum.reviewing && project.phase !== projectPhase.enum.allocating) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
-          message: `Die Zuteilung kann nur aus Phase "${projectPhase.enum.reviewing}" finalisiert werden (aktuell: "${project.phase}").`,
+          message: `Die Zuteilung kann nur aus Phase "${projectPhase.enum.allocating}" oder "${projectPhase.enum.reviewing}" finalisiert werden (aktuell: "${project.phase}").`,
         });
       }
 
