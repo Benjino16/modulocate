@@ -30,6 +30,11 @@ function GroupsPage() {
     ...trpc.studentGroups.list.queryOptions({ projectId: projectId! }),
     enabled: !!projectId,
   });
+  const { data: rules } = useQuery({
+    ...trpc.rules.list.queryOptions({ projectId: projectId! }),
+    enabled: !!projectId,
+  });
+  const ruleNameById = new Map((rules ?? []).map((r) => [r.id, r.name]));
 
   function setGroupId(id: string | undefined, { push }: { push: boolean }) {
     navigate({ search: (prev) => pruneEmpty({ ...prev, groupId: id }), replace: !push });
@@ -78,6 +83,9 @@ function GroupsPage() {
               <span className="font-semibold">{group.name}</span>
               <span className="text-sm font-normal text-muted-foreground">
                 {group.studentCount ?? 0} Schüler
+              </span>
+              <span className="text-sm font-normal text-muted-foreground">
+                {group.ruleId ? (ruleNameById.get(group.ruleId) ?? "…") : "Keine Regel"}
               </span>
             </button>
           ))}
