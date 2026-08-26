@@ -35,6 +35,18 @@ function RulesPage() {
     ...trpc.rules.list.queryOptions({ projectId: projectId! }),
     enabled: !!projectId,
   });
+  const { data: categories } = useQuery({
+    ...trpc.moduleCategories.list.queryOptions({ projectId: projectId! }),
+    enabled: !!projectId,
+  });
+  const { data: dates } = useQuery({
+    ...trpc.dates.list.queryOptions({ projectId: projectId! }),
+    enabled: !!projectId,
+  });
+  const categoryNameById = new Map((categories ?? []).map((c) => [c.id, c.name]));
+  const dateNameById = new Map((dates ?? []).map((d) => [d.id, d.name]));
+  const namesFor = (ids: string[], nameById: Map<string, string>) =>
+    ids.map((id) => nameById.get(id)).filter((name): name is string => !!name);
 
   function setRuleId(id: string | undefined, { push }: { push: boolean }) {
     navigate({ search: (prev) => pruneEmpty({ ...prev, ruleId: id }), replace: !push });
@@ -87,38 +99,78 @@ function RulesPage() {
 
       {!!rules?.length && (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
-          {rules.map((rule) => (
-            // Not a <button> — it contains the nested settings <button>, and
-            // buttons can't nest. role="button" + keyboard handling keeps it
-            // accessible; group-hover reveals the gear icon.
-            <div
-              key={rule.id}
-              role="button"
-              tabIndex={0}
-              onClick={() => openContent(rule)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  openContent(rule);
-                }
-              }}
-              className="group relative flex cursor-pointer flex-col gap-1 rounded-lg border p-4 text-left transition-colors hover:bg-accent"
-            >
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openSettings(rule);
+          {rules.map((rule) => {
+            const blockedCategoryNames = namesFor(rule.blockedCategoryIds, categoryNameById);
+            const blockedDateNames = namesFor(rule.blockedDateIds, dateNameById);
+            return (
+              // Not a <button> — it contains the nested settings <button>, and
+              // buttons can't nest. role="button" + keyboard handling keeps it
+              // accessible; group-hover reveals the gear icon.
+              <div
+                key={rule.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => openContent(rule)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    openContent(rule);
+                  }
                 }}
-                aria-label="Regeleinstellungen"
-                className="absolute top-2 right-2 rounded-md p-1.5 text-muted-foreground opacity-0 transition-opacity hover:bg-background hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100"
+                className="group relative flex cursor-pointer flex-col gap-1 rounded-lg border p-4 text-left transition-colors hover:bg-accent"
               >
-                <Settings className="size-4" />
-              </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openSettings(rule);
+                  }}
+                  aria-label="Regeleinstellungen"
+                  className="absolute top-2 right-2 rounded-md p-1.5 text-muted-foreground opacity-0 transition-opacity hover:bg-background hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100"
+                >
+                  <Settings className="size-4" />
+                </button>
 
-              <h3 className="pr-8 font-semibold">{rule.name}</h3>
-            </div>
-          ))}
+                <h3 className="pr-8 font-semibold">{rule.name}</h3>
+                <p className="text-sm text-muted-foreground">{rule.moduleCount} Module</p>
+                {rule.priority && (
+                  <p className="text-sm text-muted-foreground">Priorität bei der Zuteilung</p>
+                )}
+                {!!blockedCategoryNames.length && (
+                  <div className="text-sm text-muted-foreground">
+                    <p>Blockierte Kategorien:</p>
+                    <ul className="list-disc pl-4">
+                      {blockedCategoryNames.map((name) => (
+                        <li key={name}>{name}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {!!blockedDateNames.length && (
+                  <div className="text-sm text-muted-foreground">
+                    <p>Blockierte Termine:</p>
+                    <ul className="list-disc pl-4">
+                      {blockedDateNames.map((name) => (
+                        <li key={name}>{name}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {!!rule.subRules.length && (
+                  <div className="text-sm text-muted-foreground">
+                    <p>Sub-Regeln:</p>
+                    <ul className="list-disc pl-4">
+                      {rule.subRules.map((subRule, i) => (
+                        <li key={subRule.id}>
+                          {namesFor(subRule.categoryIds, categoryNameById).join(", ") || `Sub-Regel ${i + 1}`}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
