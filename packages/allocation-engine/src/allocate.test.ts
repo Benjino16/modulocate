@@ -448,6 +448,63 @@ describe("allocate", () => {
     expect(result.issues).toEqual([]);
   });
 
+  it("orders a student's unranked tail by ascending demand, leaving their ranked picks untouched (demandAwareUnrankedOrder defaults to on)", () => {
+    const r = rule("r1", { moduleCount: 2 });
+    // 9 contenders chase "highDemand"'s 2 seats — with capacity 2 out of 9,
+    // exactly 7 rejections land on it regardless of tie-break order, so this
+    // holds for any seed rather than depending on a lucky one.
+    const contenders = Array.from({ length: 9 }, (_, i) =>
+      student(`c${i}`, "r1", { preferences: [{ moduleId: id("highDemand"), rank: 1 }] }),
+    );
+    const testStudent = student("s1", "r1", {
+      preferences: [{ moduleId: id("chosen"), rank: 1 }],
+      eligibleModuleIds: [id("chosen"), id("highDemand"), id("lowDemand")],
+    });
+    const input = baseInput({
+      rules: [r],
+      modules: [module("chosen", { max: 30 }), module("highDemand", { max: 2 }), module("lowDemand", { max: 30 })],
+      students: [...contenders, testStudent],
+    });
+
+    const result = allocate(input, { prioPercent: 0, seed: 5 });
+
+    // ranked pick still wins outright, exactly as without the feature
+    expect(result.assignments).toContainEqual({ studentId: id("s1"), moduleId: id("chosen") });
+    // unranked tail prefers the module nobody else was fighting over...
+    expect(result.assignments).toContainEqual({ studentId: id("s1"), moduleId: id("lowDemand") });
+    // ...over the one 7/9 contenders got rejected from
+    expect(result.assignments).not.toContainEqual({ studentId: id("s1"), moduleId: id("highDemand") });
+  });
+
+  it("demandAwareUnrankedOrder: false falls back to plain per-student randomization of the unranked tail", () => {
+    const r = rule("r1", { moduleCount: 1 });
+    const contenders = Array.from({ length: 9 }, (_, i) =>
+      student(`c${i}`, "r1", { preferences: [{ moduleId: id("highDemand"), rank: 1 }] }),
+    );
+    const testStudent = student("s1", "r1", {
+      preferences: [],
+      eligibleModuleIds: [id("highDemand"), id("lowDemand")],
+    });
+    const input = baseInput({
+      rules: [r],
+      modules: [module("highDemand", { max: 2 }), module("lowDemand", { max: 30 })],
+      students: [...contenders, testStudent],
+    });
+
+    // With demand-aware ordering off, s1's unranked tail is pure random per
+    // seed — across a fixed spread of seeds it must land on the high-demand
+    // module at least once, unlike the "on" case above where it never would.
+    const outcomes = new Set(
+      Array.from({ length: 30 }, (_, seed) =>
+        allocate(input, { prioPercent: 0, seed, demandAwareUnrankedOrder: false }).assignments.find(
+          (a) => a.studentId === id("s1"),
+        )?.moduleId,
+      ),
+    );
+    expect(outcomes).toContain(id("highDemand"));
+    expect(outcomes).toContain(id("lowDemand"));
+  });
+
   it("throws if a student references a rule not present in the input", () => {
     const input = baseInput({
       rules: [],

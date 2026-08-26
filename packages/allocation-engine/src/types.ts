@@ -192,4 +192,16 @@ export interface AllocationConfig {
   // same input+config — needed to compare/redo runs and to write engine tests
   // without depending on a running backend/worker.
   seed: number;
+  // When true (the default — omit to get it), allocate() first runs an
+  // internal dry run with this same input+config (demandAwareUnrankedOrder
+  // forced off, to avoid recursing) purely to measure AllocationModuleDemand,
+  // then orders each student's unranked-module tail (see allocate.ts's
+  // shuffle()) by ascending demand instead of pure randomization — modules
+  // few people wanted go first, modules many people wanted go last. This
+  // steers unranked/filler assignments away from seats that ranking students
+  // are actually competing for and toward modules with slack capacity
+  // (helping below_min_capacity too), while ties at equal demand are still
+  // randomized so no id-bias reappears. Set false to fall back to plain
+  // per-student randomization (and to skip the extra dry-run cost).
+  demandAwareUnrankedOrder?: boolean;
 }

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@modulocate/ui/components/button";
+import { Checkbox } from "@modulocate/ui/components/checkbox";
 import { Input } from "@modulocate/ui/components/input";
 import { Label } from "@modulocate/ui/components/label";
 import { pruneEmpty } from "@modulocate/ui/lib/use-list-filter";
@@ -35,6 +36,7 @@ function AllocationPage() {
 
   const [prioPercent, setPrioPercent] = useState("20");
   const [seed, setSeed] = useState("");
+  const [demandAwareUnrankedOrder, setDemandAwareUnrankedOrder] = useState(true);
   const [error, setError] = useState<string | undefined>();
 
   function setRunId(id: string | undefined, { push }: { push: boolean }) {
@@ -83,7 +85,12 @@ function AllocationPage() {
       if (!Number.isInteger(parsedSeed)) return setError("Seed muss eine ganze Zahl sein.");
     }
 
-    startRun.mutate({ projectId: projectId!, prioPercent: prioFraction, seed: parsedSeed });
+    startRun.mutate({
+      projectId: projectId!,
+      prioPercent: prioFraction,
+      seed: parsedSeed,
+      demandAwareUnrankedOrder,
+    });
   }
 
   return (
@@ -118,6 +125,17 @@ function AllocationPage() {
             value={seed}
             onChange={(e) => setSeed(e.target.value)}
           />
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="demand-aware-unranked-order"
+            checked={demandAwareUnrankedOrder}
+            onCheckedChange={(checked) => setDemandAwareUnrankedOrder(checked === true)}
+          />
+          <Label htmlFor="demand-aware-unranked-order" className="cursor-pointer font-normal">
+            Ungerankte Module nach Nachfrage ausgleichen
+          </Label>
         </div>
 
         <Button type="submit" disabled={!projectId || !canStartRun || startRun.isPending}>

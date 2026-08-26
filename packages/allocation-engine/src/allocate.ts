@@ -33,6 +33,12 @@ interface ModuleRuntime {
 interface StudentRuntime {
   student: AllocationStudent;
   rule: AllocationRule;
+  // eligibleModuleIds minus ranked ones, ordered once per student at state
+  // construction (see orderByDemandThenShuffle/shuffle there): by ascending
+  // demand when AllocationConfig.demandAwareUnrankedOrder is on (the
+  // default), otherwise pure random — either way no module is systematically
+  // favored among students who didn't rank it.
+  unrankedModuleIds: ModuleId[];
   assignedModuleIds: ModuleId[];
   assignedModuleIdSet: Set<ModuleId>;
   assignedRankByModuleId: Map<ModuleId, number | undefined>;
@@ -44,8 +50,41 @@ interface StudentRuntime {
   claimedModuleIds: Set<ModuleId>;
 }
 
+// Fisher-Yates using the run's seeded rng, so the shuffled order is
+// reproducible for a given AllocationConfig.seed.
+function shuffle<T>(items: T[], rng: () => number): T[] {
+  const result = [...items];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
+// Runs a full dry allocation (demandAwareUnrankedOrder forced off — a dry run
+// has no prior demand to order by, and forcing it off is what stops this from
+// recursing) purely to read its AllocationModuleDemand.rejections per module.
+// Raw `rejections` (not `rejections - rejectionsViaRuleRequirement`) is used
+// deliberately: this is about total pressure on a module's seats, from any
+// cause, not just freely-chosen popularity — see AllocationConfig.demandAwareUnrankedOrder.
+function computeModuleDemandRank(input: AllocationInput, config: AllocationConfig): Map<ModuleId, number> {
+  const dryRun = allocate(input, { ...config, demandAwareUnrankedOrder: false });
+  return new Map(
+    Object.entries(dryRun.metrics.moduleDemand).map(([moduleId, demand]) => [moduleId as ModuleId, demand.rejections]),
+  );
+}
+
+// Ascending by demand (least-wanted first, most-wanted last), with ties
+// broken randomly rather than by id — shuffle first, then a stable sort
+// preserves that random order within each equal-demand group.
+function orderByDemandThenShuffle(items: ModuleId[], demandByModuleId: Map<ModuleId, number>, rng: () => number): ModuleId[] {
+  return shuffle(items, rng).sort((a, b) => (demandByModuleId.get(a) ?? 0) - (demandByModuleId.get(b) ?? 0));
+}
+
 export function allocate(input: AllocationInput, config: AllocationConfig): AllocationResult {
   const rng = createRng(config.seed);
+  const demandByModuleId =
+    (config.demandAwareUnrankedOrder ?? true) ? computeModuleDemandRank(input, config) : undefined;
   const moduleById = new Map<ModuleId, AllocationModule>(input.modules.map((m) => [m.id, m]));
   const ruleById = new Map<string, AllocationRule>(input.rules.map((r) => [r.id, r]));
 
@@ -66,9 +105,14 @@ export function allocate(input: AllocationInput, config: AllocationConfig): Allo
       // comment: every student must resolve to a rule before reaching the engine.
       throw new Error(`AllocationStudent ${student.id} references unresolved rule ${student.ruleId}`);
     }
+    const rankedSet = new Set(student.preferences.map((p) => p.moduleId));
+    const unrankedCandidates = student.eligibleModuleIds.filter((id) => !rankedSet.has(id));
     studentStates.set(student.id, {
       student,
       rule,
+      unrankedModuleIds: demandByModuleId
+        ? orderByDemandThenShuffle(unrankedCandidates, demandByModuleId, rng)
+        : shuffle(unrankedCandidates, rng),
       assignedModuleIds: [],
       assignedModuleIdSet: new Set(),
       assignedRankByModuleId: new Map(),
@@ -138,15 +182,13 @@ export function allocate(input: AllocationInput, config: AllocationConfig): Allo
 
   function buildWindow(state: StudentRuntime, isPrioRound: boolean): ModuleId[] {
     const rankedIds = [...state.student.preferences].sort((a, b) => a.rank - b.rank).map((p) => p.moduleId);
-    const rankedSet = new Set(rankedIds);
     // Eligible-but-unranked modules are lowest priority (planning.md "Locked
     // Decision: Live Resolution..." module-add mechanics) — appended after all
     // ranked ones so they can never displace an actively-ranked module, and
-    // sorted by id for a deterministic order among themselves.
-    const unrankedIds = state.student.eligibleModuleIds.filter((id) => !rankedSet.has(id)).sort();
-
+    // shuffled per-student (state.unrankedModuleIds) rather than id-sorted so
+    // no module is systematically favored among students who didn't rank it.
     const dates = assignedDateIds(state);
-    let list = [...rankedIds, ...unrankedIds].filter((id) => {
+    let list = [...rankedIds, ...state.unrankedModuleIds].filter((id) => {
       if (state.assignedModuleIdSet.has(id)) return false; // never re-assign the same module
       const module = moduleById.get(id);
       if (!module) return false;

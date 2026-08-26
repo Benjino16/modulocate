@@ -13,6 +13,12 @@ export const allocationRunCreateInput = z.object({
   // when the admin wants to reproduce or compare a specific run
   // (allocation-engine's AllocationConfig.seed).
   seed: z.number().int().optional(),
+  // omitted -> defaults to true server-side, matching allocation-engine's own
+  // default (AllocationConfig.demandAwareUnrankedOrder). Orders each
+  // student's unranked/filler modules by ascending measured demand instead
+  // of pure randomization, so indifferent students land on under-subscribed
+  // modules rather than ones ranking students are actually competing for.
+  demandAwareUnrankedOrder: z.boolean().optional(),
 });
 
 export type AllocationRunCreateInput = z.infer<typeof allocationRunCreateInput>;
