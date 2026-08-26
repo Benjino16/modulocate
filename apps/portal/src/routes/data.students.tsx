@@ -124,6 +124,8 @@ function StudentsPage() {
           return student.email2 ?? "";
         case "group":
           return student.groupName ?? "";
+        case "rule":
+          return student.ruleName ?? "";
         default:
           return null;
       }
@@ -214,6 +216,9 @@ function StudentsPage() {
               <SortableTableHead sortKey="group" currentSort={sort} onSort={handleSort}>
                 Klasse
               </SortableTableHead>
+              <SortableTableHead sortKey="rule" currentSort={sort} onSort={handleSort}>
+                Regel
+              </SortableTableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -226,18 +231,15 @@ function StudentsPage() {
                 <TableCell className="font-medium">{student.name}</TableCell>
                 <TableCell className="text-muted-foreground">{student.email}</TableCell>
                 <TableCell className="text-muted-foreground">{student.email2 || "–"}</TableCell>
+                <TableCell className="text-muted-foreground">{student.groupName || "–"}</TableCell>
                 <TableCell className="text-muted-foreground">
-                  {student.groupName || "–"}
+                  {student.ruleName || "–"}
                   {student.ownRuleId && (
                     <span
                       className="ml-2 rounded-sm bg-secondary px-1.5 py-0.5 text-xs font-medium text-secondary-foreground"
-                      title={
-                        student.ownRuleName
-                          ? `Regel für diesen Schüler überschrieben: ${student.ownRuleName}`
-                          : "Regel für diesen Schüler überschrieben"
-                      }
+                      title="Regel für diesen Schüler überschrieben (nicht von der Klasse geerbt)"
                     >
-                      Regel überschrieben
+                      überschrieben
                     </span>
                   )}
                 </TableCell>
