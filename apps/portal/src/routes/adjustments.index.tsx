@@ -23,6 +23,13 @@ function AdjustmentsPage() {
     }),
   );
 
+  const unpublishResults = useMutation(
+    trpc.projects.unpublishResults.mutationOptions({
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: trpc.projects.list.queryKey() }),
+      onError: (err) => setError(err.message),
+    }),
+  );
+
   function handleFinalize() {
     if (!projectId) return;
     setError(undefined);
@@ -47,6 +54,19 @@ function AdjustmentsPage() {
     publishResults.mutate({ projectId });
   }
 
+  function handleUnfinalize() {
+    if (!projectId) return;
+    setError(undefined);
+    if (
+      !window.confirm(
+        "Finalisierung wirklich rückgängig machen? Bereits an Schüler versandte Ergebnisse können dadurch NICHT zurückgerufen werden — sie haben ihre Zuteilung unter Umständen schon gesehen. Dies sollte nur in Notfällen verwendet werden.",
+      )
+    ) {
+      return;
+    }
+    unpublishResults.mutate({ projectId });
+  }
+
   return (
     <>
       <h1 className="text-2xl font-semibold">Anpassungen</h1>
@@ -59,6 +79,22 @@ function AdjustmentsPage() {
         <Button className="mt-4" onClick={handleFinalize} disabled={publishResults.isPending}>
           Finalisieren
         </Button>
+      )}
+
+      {project?.phase === "published" && (
+        <div className="mt-4">
+          <p className="mb-2 text-sm text-muted-foreground">
+            Die Zuteilung ist finalisiert. Anpassungen sind erst wieder möglich, nachdem die
+            Finalisierung rückgängig gemacht wurde.
+          </p>
+          <Button
+            variant="destructive"
+            onClick={handleUnfinalize}
+            disabled={unpublishResults.isPending}
+          >
+            Finalisierung rückgängig machen
+          </Button>
+        </div>
       )}
 
       {error && <p className="mt-2 text-sm text-destructive">{error}</p>}

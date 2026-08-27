@@ -117,4 +117,34 @@ export const projectsRouter = router({
 
     return { project };
   }),
+
+  // published -> reviewing. Manual escape hatch for finalizing too early or
+  // by mistake — re-opens the "Anpassungen" phase so assignments can be
+  // edited again. Does not touch student_in_module or allocation runs, so
+  // the loaded allocation is left intact, just unlocked. This does NOT
+  // recall any results already sent to students (students.sendVotingResults
+  // is a separate, explicit action) — the portal warns about that before
+  // calling it.
+  unpublishResults: staffProcedure.input(projectScoped).mutation(async ({ input }) => {
+    const { project } = await db.transaction(async (tx) => {
+      const [project] = await tx.select().from(projects).where(eq(projects.id, input.projectId));
+      if (!project) throw new TRPCError({ code: "NOT_FOUND" });
+      if (project.phase !== projectPhase.enum.published) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: `Die Finalisierung kann nur aus Phase "${projectPhase.enum.published}" rückgängig gemacht werden (aktuell: "${project.phase}").`,
+        });
+      }
+
+      const [updated] = await tx
+        .update(projects)
+        .set({ phase: projectPhase.enum.reviewing })
+        .where(eq(projects.id, input.projectId))
+        .returning();
+
+      return { project: updated };
+    });
+
+    return { project };
+  }),
 });

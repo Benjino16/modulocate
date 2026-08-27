@@ -55,8 +55,8 @@ function ResultsPage() {
     <>
       <h1 className="text-2xl font-semibold">Ergebnisse</h1>
       <p className="mt-1 text-muted-foreground">
-        Finaler Lock-In der Zuteilung. Nach dem Versand sind die Ergebnisse für Schüler und
-        Lehrkräfte einsehbar und exportierbar.
+        Finaler Lock-In der Zuteilung. PDF-Exporte sind jederzeit möglich; nach dem Versand sind
+        die Ergebnisse zusätzlich für Schüler und Lehrkräfte einsehbar.
       </p>
 
       {project?.phase === "published" && !!students?.length && (
@@ -75,8 +75,12 @@ function ResultsPage() {
           <Button onClick={handleSendResults} disabled={sendVotingResults.isPending}>
             Ergebnisse verschicken
           </Button>
+        </div>
+      )}
 
-          <div className="mt-4 flex flex-wrap items-end gap-3">
+      {project && (
+        <div className="mt-4">
+          <div className="flex flex-wrap items-end gap-3">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="export-sort-by">Sortieren nach</Label>
               <Select value={sortBy} onValueChange={(value) => setSortBy(value as ExportSortBy)}>
