@@ -16,6 +16,11 @@ export const allocationRunJobSchema = z.object({
   // resolved server-side in the backend's `start` mutation (default true),
   // same as `seed` — never left optional here.
   fillAwareUnrankedOrder: z.boolean(),
+  // resolved server-side in the backend's `start` mutation (default 1), same
+  // as `seed`/`fillAwareUnrankedOrder`. iterations >1 sweeps seed, seed+1, …
+  // and keeps only the best result — see allocationRunJobSchema's usage in
+  // the worker's processAllocationRun.
+  iterations: z.number().int().min(1),
 });
 export type AllocationRunJob = z.infer<typeof allocationRunJobSchema>;
 

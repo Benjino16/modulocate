@@ -8,6 +8,9 @@ export type AllocationRunSummary = {
   createdAt: string;
   status: "running" | "completed" | "failed";
   config: { prioPercent: number; seed: number };
+  iterations: number;
+  bestSeed?: number;
+  progress?: { completed: number; total: number };
   error?: string;
   metrics?: {
     score: number;
@@ -81,7 +84,13 @@ export function AllocationRunTile({
       </div>
 
       {run.status === "running" && (
-        <p className="text-sm text-muted-foreground">Läuft…</p>
+        <p className="text-sm text-muted-foreground">
+          {run.progress
+            ? `Läuft… ${run.progress.completed} / ${run.progress.total} (${Math.round(
+                (run.progress.completed / run.progress.total) * 100,
+              )}%)`
+            : "Läuft…"}
+        </p>
       )}
 
       {run.status === "failed" && (
@@ -107,6 +116,9 @@ export function AllocationRunTile({
           )}
 
           <p className="text-sm font-medium">Score: {run.metrics.score.toFixed(1)}</p>
+          {run.iterations > 1 && (
+            <p className="text-xs text-muted-foreground">Bester von {run.iterations} Durchläufen</p>
+          )}
         </>
       )}
     </div>

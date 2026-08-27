@@ -93,6 +93,7 @@ export const allocationRunsRouter = router({
       const id = randomUUID();
       const seed = input.seed ?? Math.floor(Math.random() * 2 ** 31);
       const fillAwareUnrankedOrder = input.fillAwareUnrankedOrder ?? true;
+      const iterations = input.iterations ?? 1;
       const createdAt = new Date().toISOString();
 
       await createAllocationRun({
@@ -101,6 +102,8 @@ export const allocationRunsRouter = router({
         createdAt,
         status: "running",
         config: { prioPercent: input.prioPercent, seed, fillAwareUnrankedOrder },
+        iterations,
+        progress: iterations > 1 ? { completed: 0, total: iterations } : undefined,
       });
 
       await getAllocationQueue().add(AllocationJobName.Run, {
@@ -109,6 +112,7 @@ export const allocationRunsRouter = router({
         prioPercent: input.prioPercent,
         seed,
         fillAwareUnrankedOrder,
+        iterations,
       });
 
       return { id };

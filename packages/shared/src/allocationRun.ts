@@ -19,6 +19,17 @@ export const allocationRunCreateInput = z.object({
   // modules still below their min go first, then modules are balanced by the
   // largest fraction of max still free.
   fillAwareUnrankedOrder: z.boolean().optional(),
+  // omitted -> 1, i.e. the classic single-run behavior. When >1, the worker
+  // runs `allocate()` once per seed in [seed, seed+iterations) over the same
+  // project snapshot and keeps only the best result (allocation-engine's
+  // isBetterAllocationResult) instead of storing every attempt. 10000 was
+  // benchmarked at this project's real scale (~105 students/46 modules) at
+  // ~3-5 minutes — allocate()'s per-run cost scales roughly quadratically
+  // with student count (packages/allocation-engine/src/allocate.ts's
+  // pickNeediest does an O(active students) scan per assignment), so this
+  // cap should be revisited before it's ever used against a much larger
+  // school.
+  iterations: z.number().int().min(1).max(10000).optional(),
 });
 
 export type AllocationRunCreateInput = z.infer<typeof allocationRunCreateInput>;

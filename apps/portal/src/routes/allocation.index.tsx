@@ -34,6 +34,7 @@ function AllocationPage() {
 
   const [prioPercent, setPrioPercent] = useState("20");
   const [seed, setSeed] = useState("");
+  const [iterations, setIterations] = useState("1");
   const [fillAwareUnrankedOrder, setFillAwareUnrankedOrder] = useState(true);
   const [error, setError] = useState<string | undefined>();
 
@@ -63,6 +64,7 @@ function AllocationPage() {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: trpc.allocationRuns.list.queryKey({ projectId: projectId! }) });
         setSeed("");
+        setIterations("1");
       },
       onError: (err) => setError(err.message),
     }),
@@ -83,11 +85,17 @@ function AllocationPage() {
       if (!Number.isInteger(parsedSeed)) return setError("Seed muss eine ganze Zahl sein.");
     }
 
+    const parsedIterations = Number(iterations);
+    if (!Number.isInteger(parsedIterations) || parsedIterations < 1 || parsedIterations > 10000) {
+      return setError("Durchläufe muss eine ganze Zahl zwischen 1 und 10000 sein.");
+    }
+
     startRun.mutate({
       projectId: projectId!,
       prioPercent: prioFraction,
       seed: parsedSeed,
       fillAwareUnrankedOrder,
+      iterations: parsedIterations,
     });
   }
 
@@ -125,6 +133,19 @@ function AllocationPage() {
           />
         </div>
 
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="iterations">Durchläufe</Label>
+          <Input
+            id="iterations"
+            type="number"
+            min={1}
+            max={10000}
+            className="w-32"
+            value={iterations}
+            onChange={(e) => setIterations(e.target.value)}
+          />
+        </div>
+
         <div className="flex items-center gap-2">
           <Checkbox
             id="fill-aware-unranked-order"
@@ -140,6 +161,13 @@ function AllocationPage() {
           Neuen Durchlauf starten
         </Button>
       </form>
+
+      {Number(iterations) > 1 && (
+        <p className="mt-2 text-sm text-muted-foreground">
+          Bei mehr als einem Durchlauf wird der Seed als Basis verwendet (Seed, Seed+1, …) und nur das beste
+          Ergebnis behalten.
+        </p>
+      )}
 
       {projectId && !canStartRun && (
         <p className="mt-2 text-sm text-muted-foreground">

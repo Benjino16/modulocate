@@ -80,10 +80,27 @@ export function AllocationRunDetailDialog({
         {run && (
           <div className="flex flex-col gap-4">
             <p className="text-sm text-muted-foreground">
-              Prio-Anteil: {Math.round(run.config.prioPercent * 100)}% · Seed: {run.config.seed}
+              Prio-Anteil: {Math.round(run.config.prioPercent * 100)}%
+              {run.iterations > 1 ? (
+                <>
+                  {" "}
+                  · Basis-Seed: {run.config.seed} · {run.iterations} Durchläufe
+                  {run.bestSeed !== undefined && <> · Bester Seed: {run.bestSeed}</>}
+                </>
+              ) : (
+                <> · Seed: {run.config.seed}</>
+              )}
             </p>
 
-            {run.status === "running" && <p className="text-sm text-muted-foreground">Läuft…</p>}
+            {run.status === "running" && (
+              <p className="text-sm text-muted-foreground">
+                {run.progress
+                  ? `Läuft… ${run.progress.completed} / ${run.progress.total} (${Math.round(
+                      (run.progress.completed / run.progress.total) * 100,
+                    )}%)`
+                  : "Läuft…"}
+              </p>
+            )}
             {run.status === "failed" && (
               <p className="text-sm text-destructive">Fehlgeschlagen{run.error ? `: ${run.error}` : ""}</p>
             )}

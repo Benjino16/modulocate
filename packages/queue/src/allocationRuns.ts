@@ -15,7 +15,21 @@ export interface AllocationRunRecord {
   createdAt: string;
   finishedAt?: string;
   status: AllocationRunStatus;
+  // config.seed is the *base* seed the admin chose/was assigned; when
+  // iterations > 1 it's the start of the seed,seed+1,…,seed+iterations-1
+  // sweep, not necessarily the seed that produced `result` (see bestSeed).
   config: AllocationConfig;
+  // 1 = classic single-run behavior (config.seed === bestSeed once completed).
+  // >1 = the worker swept that many seeds and kept only the best result.
+  iterations: number;
+  // set once completed: the seed within the sweep that actually produced
+  // `result`, re-runnable on its own via a single-iteration run with this
+  // seed to reproduce the same assignment.
+  bestSeed?: number;
+  // written periodically by the worker while status is "running" and
+  // iterations > 1, so the portal can render a progress bar instead of a
+  // static "running" state — see apps/worker's processAllocationRun.
+  progress?: { completed: number; total: number };
   result?: AllocationResult;
   error?: string;
 }
