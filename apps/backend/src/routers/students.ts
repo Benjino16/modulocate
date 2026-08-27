@@ -176,7 +176,9 @@ export async function loadStudentAssignments(executor: DbExecutor, projectId: st
           .select({ moduleId: moduleInCategory.moduleId, name: moduleCategories.name })
           .from(moduleInCategory)
           .innerJoin(moduleCategories, eq(moduleInCategory.categoryId, moduleCategories.id))
-          .where(inArray(moduleInCategory.moduleId, moduleIds)),
+          .where(
+            and(inArray(moduleInCategory.moduleId, moduleIds), eq(moduleCategories.hiddenInVote, false)),
+          ),
   ]);
 
   const categoryNamesByModule = new Map<string, string[]>();
