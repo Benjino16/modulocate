@@ -14,11 +14,11 @@ export const allocationRunCreateInput = z.object({
   // (allocation-engine's AllocationConfig.seed).
   seed: z.number().int().optional(),
   // omitted -> defaults to true server-side, matching allocation-engine's own
-  // default (AllocationConfig.demandAwareUnrankedOrder). Orders each
-  // student's unranked/filler modules by ascending measured demand instead
-  // of pure randomization, so indifferent students land on under-subscribed
-  // modules rather than ones ranking students are actually competing for.
-  demandAwareUnrankedOrder: z.boolean().optional(),
+  // default (AllocationConfig.fillAwareUnrankedOrder). Orders each student's
+  // unranked/filler modules by fill priority instead of pure randomization —
+  // modules still below their min go first, then modules are balanced by the
+  // largest fraction of max still free.
+  fillAwareUnrankedOrder: z.boolean().optional(),
 });
 
 export type AllocationRunCreateInput = z.infer<typeof allocationRunCreateInput>;

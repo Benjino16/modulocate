@@ -15,7 +15,7 @@ export const allocationRunJobSchema = z.object({
   seed: z.number().int(),
   // resolved server-side in the backend's `start` mutation (default true),
   // same as `seed` — never left optional here.
-  demandAwareUnrankedOrder: z.boolean(),
+  fillAwareUnrankedOrder: z.boolean(),
 });
 export type AllocationRunJob = z.infer<typeof allocationRunJobSchema>;
 

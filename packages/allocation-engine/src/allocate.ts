@@ -33,12 +33,12 @@ interface ModuleRuntime {
 interface StudentRuntime {
   student: AllocationStudent;
   rule: AllocationRule;
-  // eligibleModuleIds minus ranked ones, ordered once per student at state
-  // construction (see orderByDemandThenShuffle/shuffle there): by ascending
-  // demand when AllocationConfig.demandAwareUnrankedOrder is on (the
-  // default), otherwise pure random — either way no module is systematically
-  // favored among students who didn't rank it.
-  unrankedModuleIds: ModuleId[];
+  // eligibleModuleIds minus ranked ones. Unordered here — buildWindow orders
+  // this fresh on every call (see orderByFillPriorityThenShuffle/shuffle
+  // there) since the live fill state it ranks by changes as the run
+  // progresses; no module is systematically favored among students who
+  // didn't rank it either way.
+  unrankedCandidates: ModuleId[];
   assignedModuleIds: ModuleId[];
   assignedModuleIdSet: Set<ModuleId>;
   assignedRankByModuleId: Map<ModuleId, number | undefined>;
@@ -61,30 +61,89 @@ function shuffle<T>(items: T[], rng: () => number): T[] {
   return result;
 }
 
-// Runs a full dry allocation (demandAwareUnrankedOrder forced off — a dry run
-// has no prior demand to order by, and forcing it off is what stops this from
-// recursing) purely to read its AllocationModuleDemand.rejections per module.
-// Raw `rejections` (not `rejections - rejectionsViaRuleRequirement`) is used
-// deliberately: this is about total pressure on a module's seats, from any
-// cause, not just freely-chosen popularity — see AllocationConfig.demandAwareUnrankedOrder.
-function computeModuleDemandRank(input: AllocationInput, config: AllocationConfig): Map<ModuleId, number> {
-  const dryRun = allocate(input, { ...config, demandAwareUnrankedOrder: false });
-  return new Map(
-    Object.entries(dryRun.metrics.moduleDemand).map(([moduleId, demand]) => [moduleId as ModuleId, demand.rejections]),
-  );
+interface ModuleFillPriority {
+  // Not yet at its (real, live) min: fill these first, highest predicted
+  // deficit first. Once a module's live assignedTotal reaches its min,
+  // switch to filling whichever has the largest fraction of its max still
+  // free right now — proportional balancing rather than raw remaining seats,
+  // so a small and a large module needing the same relative top-up are
+  // treated alike.
+  meetsMin: boolean;
+  // Ascending sort key within the meetsMin group: -predictedDeficit while
+  // below min, -liveEmptyFraction once at/above min (most relatively empty
+  // sorts first).
+  score: number;
 }
 
-// Ascending by demand (least-wanted first, most-wanted last), with ties
-// broken randomly rather than by id — shuffle first, then a stable sort
-// preserves that random order within each equal-demand group.
-function orderByDemandThenShuffle(items: ModuleId[], demandByModuleId: Map<ModuleId, number>, rng: () => number): ModuleId[] {
-  return shuffle(items, rng).sort((a, b) => (demandByModuleId.get(a) ?? 0) - (demandByModuleId.get(b) ?? 0));
+// Runs a full dry allocation (fillAwareUnrankedOrder forced off — a dry run
+// has nothing to predict against yet, and forcing it off is what stops this
+// from recursing) purely to read each module's naturally-reached assigned
+// count, then derives from it how far short of min the module would still be
+// under natural demand alone (ranked preferences plus a plain random filler
+// pass) — see orderByFillPriorityThenShuffle for why this, and not the
+// module's raw min, is what the below-min tier should rank by.
+function computeModulePredictedDeficit(input: AllocationInput, config: AllocationConfig): Map<ModuleId, number> {
+  const dryRun = allocate(input, { ...config, fillAwareUnrankedOrder: false });
+  const dryAssignedCount = new Map<ModuleId, number>(input.modules.map((m) => [m.id, 0]));
+  for (const a of dryRun.assignments) {
+    dryAssignedCount.set(a.moduleId, (dryAssignedCount.get(a.moduleId) ?? 0) + 1);
+  }
+  return new Map(input.modules.map((m) => [m.id, Math.max(0, m.min - (dryAssignedCount.get(m.id) ?? 0))]));
+}
+
+// Below-min modules first (highest *predicted* deficit first — see
+// computeModulePredictedDeficit), then at/above-min modules (most relatively
+// empty *right now* first).
+//
+// Tier membership (meetsMin) is always evaluated against the real run's live
+// assignedTotal, never the dry run: that's what guarantees a module is never
+// targeted past its actual min and always graduates out once actually
+// reached, regardless of what the dry run predicted.
+//
+// The below-min tier is *ranked* by the dry run's predicted deficit rather
+// than the module's raw min, because at the start of a real run every
+// below-min module's live deficit simply equals its min — indistinguishable
+// from a big, genuinely popular module (which ranked demand alone would fill
+// anyway) and a small, genuinely undersubscribed one. The dry run tells them
+// apart.
+//
+// The at/above-min tier is ranked by *live* empty fraction, re-evaluated on
+// every call: a fixed snapshot (dry-run or otherwise) rarely ties two modules
+// *exactly*, even when they're genuinely equivalent (nobody assigned to
+// either yet) — sampling noise alone nudges their counts apart — so every
+// student would see the same, effectively deterministic order and pile onto
+// one module. Recomputing against the real run's current counts each time
+// keeps genuinely-tied modules tied (and hands them to the shuffle below),
+// while causing a module's own score to visibly worsen the moment it gets a
+// pick, which naturally rotates the next pick elsewhere.
+function orderByFillPriorityThenShuffle(
+  items: ModuleId[],
+  moduleById: Map<ModuleId, AllocationModule>,
+  moduleRuntimes: Map<ModuleId, ModuleRuntime>,
+  predictedDeficitByModuleId: Map<ModuleId, number>,
+  rng: () => number,
+): ModuleId[] {
+  function priority(id: ModuleId): ModuleFillPriority {
+    const module = moduleById.get(id)!;
+    const assignedTotal = moduleRuntimes.get(id)!.assignedTotal;
+    if (assignedTotal < module.min) {
+      return { meetsMin: false, score: -(predictedDeficitByModuleId.get(id) ?? 0) };
+    }
+    const emptyFraction = module.max > 0 ? (module.max - assignedTotal) / module.max : 0;
+    return { meetsMin: true, score: -emptyFraction };
+  }
+  return shuffle(items, rng).sort((a, b) => {
+    const pa = priority(a);
+    const pb = priority(b);
+    if (pa.meetsMin !== pb.meetsMin) return pa.meetsMin ? 1 : -1;
+    return pa.score - pb.score;
+  });
 }
 
 export function allocate(input: AllocationInput, config: AllocationConfig): AllocationResult {
   const rng = createRng(config.seed);
-  const demandByModuleId =
-    (config.demandAwareUnrankedOrder ?? true) ? computeModuleDemandRank(input, config) : undefined;
+  const fillAwareUnrankedOrder = config.fillAwareUnrankedOrder ?? true;
+  const predictedDeficitByModuleId = fillAwareUnrankedOrder ? computeModulePredictedDeficit(input, config) : undefined;
   const moduleById = new Map<ModuleId, AllocationModule>(input.modules.map((m) => [m.id, m]));
   const ruleById = new Map<string, AllocationRule>(input.rules.map((r) => [r.id, r]));
 
@@ -110,9 +169,7 @@ export function allocate(input: AllocationInput, config: AllocationConfig): Allo
     studentStates.set(student.id, {
       student,
       rule,
-      unrankedModuleIds: demandByModuleId
-        ? orderByDemandThenShuffle(unrankedCandidates, demandByModuleId, rng)
-        : shuffle(unrankedCandidates, rng),
+      unrankedCandidates,
       assignedModuleIds: [],
       assignedModuleIdSet: new Set(),
       assignedRankByModuleId: new Map(),
@@ -185,10 +242,14 @@ export function allocate(input: AllocationInput, config: AllocationConfig): Allo
     // Eligible-but-unranked modules are lowest priority (planning.md "Locked
     // Decision: Live Resolution..." module-add mechanics) — appended after all
     // ranked ones so they can never displace an actively-ranked module, and
-    // shuffled per-student (state.unrankedModuleIds) rather than id-sorted so
-    // no module is systematically favored among students who didn't rank it.
+    // ordered fresh against live fill state each call (see
+    // orderByFillPriorityThenShuffle) rather than id-sorted, so no module is
+    // systematically favored among students who didn't rank it.
+    const unrankedIds = fillAwareUnrankedOrder
+      ? orderByFillPriorityThenShuffle(state.unrankedCandidates, moduleById, moduleRuntimes, predictedDeficitByModuleId!, rng)
+      : shuffle(state.unrankedCandidates, rng);
     const dates = assignedDateIds(state);
-    let list = [...rankedIds, ...state.unrankedModuleIds].filter((id) => {
+    let list = [...rankedIds, ...unrankedIds].filter((id) => {
       if (state.assignedModuleIdSet.has(id)) return false; // never re-assign the same module
       const module = moduleById.get(id);
       if (!module) return false;

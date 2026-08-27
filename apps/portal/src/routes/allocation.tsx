@@ -37,7 +37,7 @@ function AllocationPage() {
 
   const [prioPercent, setPrioPercent] = useState("20");
   const [seed, setSeed] = useState("");
-  const [demandAwareUnrankedOrder, setDemandAwareUnrankedOrder] = useState(true);
+  const [fillAwareUnrankedOrder, setFillAwareUnrankedOrder] = useState(true);
   const [error, setError] = useState<string | undefined>();
 
   function setRunId(id: string | undefined, { push }: { push: boolean }) {
@@ -90,7 +90,7 @@ function AllocationPage() {
       projectId: projectId!,
       prioPercent: prioFraction,
       seed: parsedSeed,
-      demandAwareUnrankedOrder,
+      fillAwareUnrankedOrder,
     });
   }
 
@@ -130,12 +130,12 @@ function AllocationPage() {
 
         <div className="flex items-center gap-2">
           <Checkbox
-            id="demand-aware-unranked-order"
-            checked={demandAwareUnrankedOrder}
-            onCheckedChange={(checked) => setDemandAwareUnrankedOrder(checked === true)}
+            id="fill-aware-unranked-order"
+            checked={fillAwareUnrankedOrder}
+            onCheckedChange={(checked) => setFillAwareUnrankedOrder(checked === true)}
           />
-          <Label htmlFor="demand-aware-unranked-order" className="cursor-pointer font-normal">
-            Ungerankte Module nach Nachfrage ausgleichen
+          <Label htmlFor="fill-aware-unranked-order" className="cursor-pointer font-normal">
+            Ungerankte Module nach Füllstand ausgleichen
           </Label>
         </div>
 

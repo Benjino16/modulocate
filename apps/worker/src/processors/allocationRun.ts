@@ -3,10 +3,10 @@ import { assembleAllocationInput, db } from "@modulocate/db";
 import { updateAllocationRun, type AllocationRunJob } from "@modulocate/queue";
 
 export async function processAllocationRun(data: AllocationRunJob) {
-  const { projectId, runId, prioPercent, seed, demandAwareUnrankedOrder } = data;
+  const { projectId, runId, prioPercent, seed, fillAwareUnrankedOrder } = data;
   try {
     const { input, preIssues } = await assembleAllocationInput(db, projectId);
-    const result = allocate(input, { prioPercent, seed, demandAwareUnrankedOrder });
+    const result = allocate(input, { prioPercent, seed, fillAwareUnrankedOrder });
 
     // Students excluded before the engine ever ran (no effective rule) are
     // folded in here so the tile's warning counts reflect the whole project,

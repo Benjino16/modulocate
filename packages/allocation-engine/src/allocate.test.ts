@@ -448,61 +448,210 @@ describe("allocate", () => {
     expect(result.issues).toEqual([]);
   });
 
-  it("orders a student's unranked tail by ascending demand, leaving their ranked picks untouched (demandAwareUnrankedOrder defaults to on)", () => {
+  it("orders a student's unranked tail toward a below-min module over one that already meets its min, leaving ranked picks untouched (fillAwareUnrankedOrder defaults to on)", () => {
     const r = rule("r1", { moduleCount: 2 });
-    // 9 contenders chase "highDemand"'s 2 seats — with capacity 2 out of 9,
-    // exactly 7 rejections land on it regardless of tie-break order, so this
-    // holds for any seed rather than depending on a lucky one.
-    const contenders = Array.from({ length: 9 }, (_, i) =>
-      student(`c${i}`, "r1", { preferences: [{ moduleId: id("highDemand"), rank: 1 }] }),
-    );
     const testStudent = student("s1", "r1", {
       preferences: [{ moduleId: id("chosen"), rank: 1 }],
-      eligibleModuleIds: [id("chosen"), id("highDemand"), id("lowDemand")],
+      eligibleModuleIds: [id("chosen"), id("belowMin"), id("roomy")],
     });
     const input = baseInput({
       rules: [r],
-      modules: [module("chosen", { max: 30 }), module("highDemand", { max: 2 }), module("lowDemand", { max: 30 })],
-      students: [...contenders, testStudent],
+      // nobody ranks belowMin or roomy, so both start the dry run at 0
+      // assigned — belowMin's min > 0 puts it below min (deficit 5), while
+      // roomy's min 0 already meets it, so belowMin must win the unranked pick.
+      modules: [
+        module("chosen", { max: 30 }),
+        module("belowMin", { min: 5, max: 30 }),
+        module("roomy", { min: 0, max: 30 }),
+      ],
+      students: [testStudent],
     });
 
     const result = allocate(input, { prioPercent: 0, seed: 5 });
 
     // ranked pick still wins outright, exactly as without the feature
     expect(result.assignments).toContainEqual({ studentId: id("s1"), moduleId: id("chosen") });
-    // unranked tail prefers the module nobody else was fighting over...
-    expect(result.assignments).toContainEqual({ studentId: id("s1"), moduleId: id("lowDemand") });
-    // ...over the one 7/9 contenders got rejected from
-    expect(result.assignments).not.toContainEqual({ studentId: id("s1"), moduleId: id("highDemand") });
+    // unranked tail prefers the module still below its min...
+    expect(result.assignments).toContainEqual({ studentId: id("s1"), moduleId: id("belowMin") });
+    // ...over one that already meets its (zero) min
+    expect(result.assignments).not.toContainEqual({ studentId: id("s1"), moduleId: id("roomy") });
   });
 
-  it("demandAwareUnrankedOrder: false falls back to plain per-student randomization of the unranked tail", () => {
+  it("once every module meets its min, orders a student's unranked tail toward the one with the largest fraction of max still free", () => {
     const r = rule("r1", { moduleCount: 1 });
-    const contenders = Array.from({ length: 9 }, (_, i) =>
-      student(`c${i}`, "r1", { preferences: [{ moduleId: id("highDemand"), rank: 1 }] }),
+    // 8 contenders fill "small" to 8/10 — it already meets its min (0), just
+    // has little relative room left (20% free) — while "big" stays untouched
+    // (100% free), so the unranked student should land on "big".
+    const contenders = Array.from({ length: 8 }, (_, i) =>
+      student(`c${i}`, "r1", { preferences: [{ moduleId: id("small"), rank: 1 }] }),
     );
     const testStudent = student("s1", "r1", {
       preferences: [],
-      eligibleModuleIds: [id("highDemand"), id("lowDemand")],
+      eligibleModuleIds: [id("small"), id("big")],
     });
     const input = baseInput({
       rules: [r],
-      modules: [module("highDemand", { max: 2 }), module("lowDemand", { max: 30 })],
+      modules: [module("small", { min: 0, max: 10 }), module("big", { min: 0, max: 100 })],
       students: [...contenders, testStudent],
     });
 
-    // With demand-aware ordering off, s1's unranked tail is pure random per
-    // seed — across a fixed spread of seeds it must land on the high-demand
-    // module at least once, unlike the "on" case above where it never would.
+    const result = allocate(input, { prioPercent: 0, seed: 5 });
+
+    expect(result.assignments).toContainEqual({ studentId: id("s1"), moduleId: id("big") });
+    expect(result.assignments).not.toContainEqual({ studentId: id("s1"), moduleId: id("small") });
+  });
+
+  it("once every module meets its min, ranks by relative empty fraction, not absolute empty seats", () => {
+    // X has 20 absolute empty seats (10% of 200) vs. Y's 5 (25% of 20) — more
+    // room in X by raw count, but proportionally roomier in Y. Filling both
+    // via a priority round first makes their live counts deterministic before
+    // s1 (a normal-round, non-priority student) is ever evaluated, so this
+    // isn't at the mercy of processing-order interleaving.
+    const prio = rule("prio", { moduleCount: 1, priority: true });
+    const normal = rule("normal", { moduleCount: 1 });
+    const contendersX = Array.from({ length: 180 }, (_, i) =>
+      student(`cx${i}`, "prio", { preferences: [{ moduleId: id("X"), rank: 1 }] }),
+    );
+    const contendersY = Array.from({ length: 15 }, (_, i) =>
+      student(`cy${i}`, "prio", { preferences: [{ moduleId: id("Y"), rank: 1 }] }),
+    );
+    const testStudent = student("s1", "normal", { preferences: [], eligibleModuleIds: [id("X"), id("Y")] });
+    const input = baseInput({
+      rules: [prio, normal],
+      modules: [module("X", { max: 200 }), module("Y", { max: 20 })],
+      students: [...contendersX, ...contendersY, testStudent],
+    });
+
+    const result = allocate(input, { prioPercent: 1, seed: 5 });
+
+    expect(result.assignments).toContainEqual({ studentId: id("s1"), moduleId: id("Y") });
+    expect(result.assignments).not.toContainEqual({ studentId: id("s1"), moduleId: id("X") });
+  });
+
+  it("below-min ranking uses absolute predicted deficit, not the deficit relative to each module's own min", () => {
+    // A needs 10 more (absolute) to reach its min of 50, just 20% of it —
+    // ranked demand covers the rest. B needs all 6 of its min (absolute),
+    // i.e. 100% of it, with no ranked demand at all. Absolute ranking (what
+    // the engine does) sends most fillers to A; ranking by the *relative*
+    // shortfall instead would send them almost all to B.
+    const r = rule("r1");
+    const A = module("A", { min: 50, max: 100 });
+    const B = module("B", { min: 6, max: 50 });
+    const contenders = Array.from({ length: 40 }, (_, i) =>
+      student(`c${i}`, "r1", { preferences: [{ moduleId: id("A"), rank: 1 }] }),
+    );
+    const nonVoters = Array.from({ length: 20 }, (_, i) =>
+      student(`nv${i}`, "r1", { preferences: [], eligibleModuleIds: [id("A"), id("B")] }),
+    );
+    const input = baseInput({ rules: [r], modules: [A, B], students: [...contenders, ...nonVoters] });
+
+    const result = allocate(input, { prioPercent: 0, seed: 1 });
+
+    const nonVoterAssignments = result.assignments.filter((a) => a.studentId.startsWith("nv"));
+    const toA = nonVoterAssignments.filter((a) => a.moduleId === id("A")).length;
+    const toB = nonVoterAssignments.filter((a) => a.moduleId === id("B")).length;
+    expect(toA).toBeGreaterThan(toB);
+  });
+
+  it("spreads many non-voting students across several equally-below-min modules instead of piling onto one", () => {
+    // Regression test: below-min ranking uses the dry run's predicted deficit
+    // (an integer, and genuinely tied here since none of these modules gets
+    // any ranked demand), so real ties stay ties and the per-pick shuffle can
+    // spread students across them — unlike ranking by *live* empty fraction
+    // (a continuous value) would, which an earlier version of this feature
+    // did for this tier too and which almost never ties two modules exactly,
+    // so every student saw the same order and all 40 piled onto one module.
+    const r = rule("r1", { moduleCount: 1 });
+    const belowMinModules = Array.from({ length: 5 }, (_, i) => module(`bm${i}`, { min: 5, max: 50 }));
+    const nonVoters = Array.from({ length: 40 }, (_, i) =>
+      student(`nv${i}`, "r1", { preferences: [], eligibleModuleIds: belowMinModules.map((m) => m.id) }),
+    );
+    const input = baseInput({ rules: [r], modules: belowMinModules, students: nonVoters });
+
+    const result = allocate(input, { prioPercent: 0, seed: 42 });
+
+    const counts = new Map<string, number>();
+    for (const a of result.assignments) counts.set(a.moduleId, (counts.get(a.moduleId) ?? 0) + 1);
+    expect(Math.max(...counts.values())).toBeLessThan(40);
+    expect(counts.size).toBeGreaterThan(1);
+  });
+
+  it("spreads many non-voting students across several equally-empty at-min modules instead of piling onto one", () => {
+    const r = rule("r1", { moduleCount: 1 });
+    const roomyModules = Array.from({ length: 5 }, (_, i) => module(`rm${i}`, { min: 0, max: 50 }));
+    const nonVoters = Array.from({ length: 40 }, (_, i) =>
+      student(`nv${i}`, "r1", { preferences: [], eligibleModuleIds: roomyModules.map((m) => m.id) }),
+    );
+    const input = baseInput({ rules: [r], modules: roomyModules, students: nonVoters });
+
+    const result = allocate(input, { prioPercent: 0, seed: 7 });
+
+    const counts = new Map<string, number>();
+    for (const a of result.assignments) counts.set(a.moduleId, (counts.get(a.moduleId) ?? 0) + 1);
+    expect(Math.max(...counts.values())).toBeLessThan(40);
+    expect(counts.size).toBeGreaterThan(1);
+  });
+
+  it("prioritizes a genuinely undersubscribed module over a popular one that ranked demand alone fills to its min", () => {
+    // Without the dry run, "unpopular"'s live deficit at the start of the
+    // real run is indistinguishable from "popular"'s: both simply equal their
+    // own min. Ranking by the dry run's *predicted* deficit instead tells
+    // them apart — the dry run shows ranked demand alone fills "popular" to
+    // its min (predicted deficit 0), while "unpopular" gets essentially none
+    // (predicted deficit close to its min) — so filler seats should go
+    // almost entirely to "unpopular".
+    const r = rule("r1", { moduleCount: 1 });
+    const popular = module("popular", { min: 20, max: 20 });
+    const unpopular = module("unpopular", { min: 8, max: 50 });
+    // distractor modules spread the dry run's random filler pass thin, so
+    // "unpopular" doesn't accidentally hit its min by sheer luck of a 50/50 split
+    const distractors = Array.from({ length: 8 }, (_, i) => module(`d${i}`, { min: 0, max: 50 }));
+    const contenders = Array.from({ length: 20 }, (_, i) =>
+      student(`c${i}`, "r1", { preferences: [{ moduleId: id("popular"), rank: 1 }] }),
+    );
+    const fillerEligible = [id<ModuleId>("popular"), id<ModuleId>("unpopular"), ...distractors.map((m) => m.id)];
+    const nonVoters = Array.from({ length: 10 }, (_, i) =>
+      student(`nv${i}`, "r1", { preferences: [], eligibleModuleIds: fillerEligible }),
+    );
+    const input = baseInput({
+      rules: [r],
+      modules: [popular, unpopular, ...distractors],
+      students: [...contenders, ...nonVoters],
+    });
+
+    const result = allocate(input, { prioPercent: 0, seed: 3 });
+
+    const nonVoterAssignments = result.assignments.filter((a) => a.studentId.startsWith("nv"));
+    const toUnpopular = nonVoterAssignments.filter((a) => a.moduleId === id("unpopular")).length;
+    const toPopular = nonVoterAssignments.filter((a) => a.moduleId === id("popular")).length;
+    expect(toUnpopular).toBeGreaterThan(toPopular);
+  });
+
+  it("fillAwareUnrankedOrder: false falls back to plain per-student randomization of the unranked tail", () => {
+    const r = rule("r1", { moduleCount: 1 });
+    const testStudent = student("s1", "r1", {
+      preferences: [],
+      eligibleModuleIds: [id("belowMin"), id("roomy")],
+    });
+    const input = baseInput({
+      rules: [r],
+      modules: [module("belowMin", { min: 5, max: 30 }), module("roomy", { min: 0, max: 30 })],
+      students: [testStudent],
+    });
+
+    // With fill-aware ordering off, s1's unranked tail is pure random per
+    // seed — across a fixed spread of seeds it must land on both modules at
+    // least once, unlike the "on" case above where it would always pick
+    // belowMin.
     const outcomes = new Set(
       Array.from({ length: 30 }, (_, seed) =>
-        allocate(input, { prioPercent: 0, seed, demandAwareUnrankedOrder: false }).assignments.find(
+        allocate(input, { prioPercent: 0, seed, fillAwareUnrankedOrder: false }).assignments.find(
           (a) => a.studentId === id("s1"),
         )?.moduleId,
       ),
     );
-    expect(outcomes).toContain(id("highDemand"));
-    expect(outcomes).toContain(id("lowDemand"));
+    expect(outcomes).toContain(id("belowMin"));
+    expect(outcomes).toContain(id("roomy"));
   });
 
   it("throws if a student references a rule not present in the input", () => {
