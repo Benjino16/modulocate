@@ -48,9 +48,8 @@ export function votingResultsTemplate(params: {
     modulesWithDescription.length > 0
       ? `<p style="margin:24px 0 8px;font-size:13px;font-weight:700;color:${MUTED_FOREGROUND};">Mehr zu deinen Modulen</p>${infoBoxes}`
       : "";
-  const bodyHtml = `${params.introHtml ?? ""}<p style="margin:0 0 8px;">Dir wurden folgende ${params.modules.length} Module zugeteilt:</p><table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;">${rows}</table>${infoBoxesHtml}`;
+  const bodyHtml = `<p style="margin:0 0 8px;">Dir wurden folgende ${params.modules.length} Module zugeteilt:</p><table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;">${rows}</table>${params.introHtml ?? ""}${infoBoxesHtml}`;
   const bodyText = [
-    params.introHtml ? htmlToText(params.introHtml) : "",
     `Dir wurden folgende ${params.modules.length} Module zugeteilt:`,
     params.modules
       .map((module, index) => {
@@ -58,6 +57,7 @@ export function votingResultsTemplate(params: {
         return meta ? `${index + 1}. ${module.name} (${meta})` : `${index + 1}. ${module.name}`;
       })
       .join("\n"),
+    params.introHtml ? htmlToText(params.introHtml) : "",
     modulesWithDescription.length > 0
       ? [
           "Mehr zu deinen Modulen:",
