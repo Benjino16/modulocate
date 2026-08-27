@@ -5,12 +5,16 @@ import { and, eq, inArray } from "drizzle-orm";
 import { studentCreateInput, studentUpdateInput } from "@modulocate/shared";
 import {
   db,
+  modules,
+  moduleCategories,
+  moduleInCategory,
   rules,
   studentGroups,
   studentInGroup,
   studentInModule,
   studentPreferences,
   students,
+  resolveModuleDisplayScheduleLabels,
   resolvePinnedModulesByStudent,
   resolveRuleCompliance,
   resolveStudentModuleOptions,
@@ -131,6 +135,76 @@ async function loadStudents(executor: DbExecutor, projectId: string, ids?: strin
 function average(values: number[]): number | null {
   if (values.length === 0) return null;
   return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+// Batched student -> assigned modules lookup for the whole project, for the
+// per-student PDF export (routes/exports.ts). Mirrors loadModuleRosters in
+// routers/modules.ts (same idea, opposite direction: there we group
+// students by module, here we group modules by student) so a whole
+// project's assignments come back in a handful of queries instead of one
+// per student. Every project student is included, even with an empty
+// `modules` array, so the export can still print a page noting they got
+// nothing assigned.
+export async function loadStudentAssignments(executor: DbExecutor, projectId: string) {
+  const studentRows = await executor
+    .select({ id: students.id, name: students.name, groupName: studentGroups.name })
+    .from(students)
+    .leftJoin(studentInGroup, eq(studentInGroup.studentId, students.id))
+    .leftJoin(studentGroups, eq(studentGroups.id, studentInGroup.groupId))
+    .where(eq(students.projectId, projectId));
+
+  const assignmentRows = await executor
+    .select({
+      studentId: studentInModule.studentId,
+      moduleId: modules.id,
+      moduleName: modules.name,
+      teacher: modules.teacher,
+      scheduleLabel: modules.scheduleLabel,
+      description: modules.description,
+    })
+    .from(studentInModule)
+    .innerJoin(modules, eq(modules.id, studentInModule.moduleId))
+    .where(eq(studentInModule.projectId, projectId));
+
+  const moduleIds = [...new Set(assignmentRows.map((row) => row.moduleId))];
+
+  const [displayScheduleLabelByModule, categoryRows] = await Promise.all([
+    resolveModuleDisplayScheduleLabels(executor, moduleIds),
+    moduleIds.length === 0
+      ? Promise.resolve([])
+      : executor
+          .select({ moduleId: moduleInCategory.moduleId, name: moduleCategories.name })
+          .from(moduleInCategory)
+          .innerJoin(moduleCategories, eq(moduleInCategory.categoryId, moduleCategories.id))
+          .where(inArray(moduleInCategory.moduleId, moduleIds)),
+  ]);
+
+  const categoryNamesByModule = new Map<string, string[]>();
+  for (const row of categoryRows) {
+    const list = categoryNamesByModule.get(row.moduleId) ?? [];
+    list.push(row.name);
+    categoryNamesByModule.set(row.moduleId, list);
+  }
+
+  const assignmentsByStudent = new Map<string, typeof assignmentRows>();
+  for (const row of assignmentRows) {
+    const list = assignmentsByStudent.get(row.studentId) ?? [];
+    list.push(row);
+    assignmentsByStudent.set(row.studentId, list);
+  }
+
+  return studentRows.map((student) => ({
+    ...student,
+    modules: (assignmentsByStudent.get(student.id) ?? [])
+      .map((row) => ({
+        name: row.moduleName,
+        teacher: row.teacher,
+        displayScheduleLabel: row.scheduleLabel || displayScheduleLabelByModule.get(row.moduleId) || null,
+        categoryNames: categoryNamesByModule.get(row.moduleId) ?? [],
+        description: row.description,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+  }));
 }
 
 function generateSignInCode(): string {

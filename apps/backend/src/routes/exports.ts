@@ -5,11 +5,14 @@ import {
   renderAttendanceListsPdf,
   renderParticipantListsPdf,
   renderCompactParticipantListsPdf,
+  renderStudentListsPdf,
   type AttendanceModuleData,
   type ParticipantModuleData,
+  type StudentListData,
 } from "@modulocate/pdf-export";
 import { auth } from "../auth";
 import { loadModules, loadModuleRosters } from "../routers/modules";
+import { loadStudentAssignments } from "../routers/students";
 
 // Comma-separated `?moduleIds=a,b,c` — omitted means "every module in the
 // project". Kept as an explicit filter (unused by the portal UI for now,
@@ -214,6 +217,33 @@ export function registerExportRoutes(server: FastifyInstance) {
     reply
       .header("Content-Type", "application/pdf")
       .header("Content-Disposition", `attachment; filename="${exportFilename("teilnehmerlisten-kompakt")}"`)
+      .send(buffer);
+  });
+
+  server.get("/api/projects/:projectId/exports/student-lists.pdf", async (request, reply) => {
+    if (!(await requireStaffSession(request, reply))) return;
+    const { projectId } = request.params as { projectId: string };
+
+    const studentRows = await loadStudentAssignments(db, projectId);
+    // Klasse then Name, so a printed stack comes out grouped by class —
+    // nulls (no Klasse) sort first, mirroring sortModuleRows' convention.
+    const sortedStudents = [...studentRows].sort((a, b) => {
+      if (a.groupName == null && b.groupName == null) return a.name.localeCompare(b.name);
+      if (a.groupName == null) return -1;
+      if (b.groupName == null) return 1;
+      return a.groupName.localeCompare(b.groupName) || a.name.localeCompare(b.name);
+    });
+
+    const documentStudents: StudentListData[] = sortedStudents.map((student) => ({
+      studentName: student.name,
+      groupName: student.groupName,
+      modules: student.modules,
+    }));
+
+    const buffer = await renderStudentListsPdf(documentStudents);
+    reply
+      .header("Content-Type", "application/pdf")
+      .header("Content-Disposition", `attachment; filename="${exportFilename("schuelerlisten")}"`)
       .send(buffer);
   });
 }

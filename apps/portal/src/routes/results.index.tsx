@@ -124,6 +124,11 @@ function ResultsPage() {
                 Teilnehmerlisten kompakt (PDF)
               </a>
             </Button>
+            <Button asChild variant="outline">
+              <a href={`/api/projects/${projectId}/exports/student-lists.pdf`} download>
+                Schülerlisten (PDF)
+              </a>
+            </Button>
           </div>
         </div>
       )}
