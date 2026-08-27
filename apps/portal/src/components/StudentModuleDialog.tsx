@@ -79,7 +79,7 @@ export function StudentModuleDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{student?.name}</DialogTitle>
+          <DialogTitle title={student?.name}>{student?.name}</DialogTitle>
         </DialogHeader>
 
         <p className="-mt-2 text-sm text-muted-foreground">
@@ -108,12 +108,12 @@ export function StudentModuleDialog({
           <ul className="flex flex-col gap-1">
             {options.map((module) => {
               const label = (
-                <div className="flex flex-col gap-0.5">
-                  <div className="flex items-center gap-2 text-sm">
+                <div className="flex min-w-0 flex-col gap-0.5">
+                  <div className="flex min-w-0 items-center gap-2 text-sm">
                     <span className="w-5 shrink-0 text-right text-muted-foreground tabular-nums">
                       {module.preference ?? "–"}.
                     </span>
-                    <span className="truncate font-medium">{module.name}</span>
+                    <span className="min-w-0 flex-1 truncate font-medium">{module.name}</span>
                   </div>
                   <div className="truncate pl-7 text-xs text-muted-foreground">
                     {module.displayScheduleLabel || "Kein Termin festgelegt"}

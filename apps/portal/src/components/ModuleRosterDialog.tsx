@@ -92,7 +92,7 @@ export function ModuleRosterDialog({
     >
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{module?.name}</DialogTitle>
+          <DialogTitle title={module?.name}>{module?.name}</DialogTitle>
         </DialogHeader>
 
         <p className="-mt-2 text-sm text-muted-foreground">
@@ -171,7 +171,7 @@ function StudentList({
             <span className="w-5 shrink-0 text-right text-muted-foreground tabular-nums">
               {student.preference ?? "–"}.
             </span>
-            <span className="truncate font-medium">{student.name}</span>
+            <span className="min-w-0 flex-1 truncate font-medium">{student.name}</span>
             <span className="shrink-0 text-muted-foreground">{student.groupName || "–"}</span>
             {student.ruleId && (
               <span

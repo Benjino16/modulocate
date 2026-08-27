@@ -48,7 +48,7 @@ export function StudentPreferencesDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{student?.name}</DialogTitle>
+          <DialogTitle title={student?.name}>{student?.name}</DialogTitle>
         </DialogHeader>
 
         <p className="-mt-2 text-sm text-muted-foreground">
@@ -97,11 +97,11 @@ export function StudentPreferencesDialog({
         {!!preferences?.length && (
           <ul className="flex flex-col gap-1">
             {preferences.map((pref) => (
-              <li key={pref.moduleId} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm">
+              <li key={pref.moduleId} className="flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-sm">
                 <span className="w-5 shrink-0 text-right text-muted-foreground tabular-nums">
                   {pref.preference}.
                 </span>
-                <span className="truncate font-medium">{pref.moduleName}</span>
+                <span className="min-w-0 flex-1 truncate font-medium">{pref.moduleName}</span>
               </li>
             ))}
           </ul>
