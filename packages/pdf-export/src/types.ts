@@ -19,9 +19,6 @@ export type StudentListModuleData = {
   displayScheduleLabel: string | null;
   teacher: string | null;
   categoryNames: string[];
-  // Sanitized rich-text HTML (see sanitizeRichText's tag whitelist: h4, p,
-  // strong, em, u, ul, li, br) or null when the module has no description.
-  description: string | null;
 };
 
 export type StudentListData = {

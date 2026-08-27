@@ -160,7 +160,6 @@ export async function loadStudentAssignments(executor: DbExecutor, projectId: st
       moduleName: modules.name,
       teacher: modules.teacher,
       scheduleLabel: modules.scheduleLabel,
-      description: modules.description,
     })
     .from(studentInModule)
     .innerJoin(modules, eq(modules.id, studentInModule.moduleId))
@@ -203,7 +202,6 @@ export async function loadStudentAssignments(executor: DbExecutor, projectId: st
         teacher: row.teacher,
         displayScheduleLabel: row.scheduleLabel || displayScheduleLabelByModule.get(row.moduleId) || null,
         categoryNames: categoryNamesByModule.get(row.moduleId) ?? [],
-        description: row.description,
       }))
       .sort((a, b) => a.name.localeCompare(b.name)),
   }));
