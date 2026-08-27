@@ -10,17 +10,29 @@ import {
   SortableTableHead,
 } from "@modulocate/ui/components/table";
 import { SearchFilterBar } from "@modulocate/ui/components/search-filter-bar";
-import { useListFilter, pruneEmpty } from "@modulocate/ui/lib/use-list-filter";
+import { useListFilter, pruneEmpty, type FilterConfig } from "@modulocate/ui/lib/use-list-filter";
 import { useTableSort, toggleSort, type SortState, type SortDirection } from "@modulocate/ui/lib/use-table-sort";
 import { useTRPC } from "../trpc";
 import { useProject } from "../lib/use-project";
 import { useDialogSearchParam } from "../lib/use-dialog-search-param";
 import { StudentModuleDialog } from "../components/StudentModuleDialog";
 
-// Optional keys so an empty search/sort state serializes to no query params
-// at all, instead of leaving "?q=&sort=" around by default. studentId doubles
-// as StudentModuleDialog's open state — see use-dialog-search-param.ts.
-type AdjustmentsStudentsSearch = { q?: string; sort?: string; dir?: SortDirection; studentId?: string };
+// Optional keys so an empty search/filter/sort state serializes to no query
+// params at all, instead of leaving "?q=&group=&sort=" around by default.
+// studentId doubles as StudentModuleDialog's open state — see
+// use-dialog-search-param.ts.
+type AdjustmentsStudentsSearch = {
+  q?: string;
+  group?: string[];
+  rule?: string[];
+  sort?: string;
+  dir?: SortDirection;
+  studentId?: string;
+};
+
+function parseStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
+}
 
 function parseSortDir(value: unknown): SortDirection | undefined {
   return value === "asc" || value === "desc" ? value : undefined;
@@ -31,6 +43,8 @@ export const Route = createFileRoute("/adjustments/students")({
   validateSearch: (search: Record<string, unknown>): AdjustmentsStudentsSearch =>
     pruneEmpty({
       q: typeof search.q === "string" ? search.q : "",
+      group: parseStringArray(search.group),
+      rule: parseStringArray(search.rule),
       sort: typeof search.sort === "string" ? search.sort : "",
       dir: parseSortDir(search.dir),
       studentId: typeof search.studentId === "string" ? search.studentId : "",
@@ -50,7 +64,9 @@ type Compliance = {
 type Student = {
   id: string;
   name: string;
+  groupId: string | null;
   groupName: string | null;
+  ruleId: string | null;
   averagePreference: number | null;
 };
 
@@ -58,7 +74,7 @@ function AdjustmentsStudentsPage() {
   const trpc = useTRPC();
   const { projectId } = useProject();
   const navigate = Route.useNavigate();
-  const { q = "", sort: sortKey, dir, studentId } = Route.useSearch();
+  const { q = "", group = [], rule = [], sort: sortKey, dir, studentId } = Route.useSearch();
   const sort: SortState = sortKey && dir ? { key: sortKey, dir } : null;
 
   const { data: students, isLoading } = useQuery({
@@ -69,15 +85,39 @@ function AdjustmentsStudentsPage() {
     ...trpc.students.ruleCompliance.queryOptions({ projectId: projectId! }),
     enabled: !!projectId,
   });
+  const { data: groups } = useQuery({
+    ...trpc.studentGroups.list.queryOptions({ projectId: projectId! }),
+    enabled: !!projectId,
+  });
+  const { data: rules } = useQuery({
+    ...trpc.rules.list.queryOptions({ projectId: projectId! }),
+    enabled: !!projectId,
+  });
 
   const complianceByStudent = new Map((compliance ?? []).map((c) => [c.studentId, c]));
 
+  const filters: FilterConfig<Student>[] = [
+    {
+      key: "group",
+      label: "Klasse",
+      options: (groups ?? []).map((g) => ({ value: g.id, label: g.name })),
+      match: (student, selected) => !!student.groupId && selected.includes(student.groupId),
+    },
+    {
+      key: "rule",
+      label: "Regel",
+      options: (rules ?? []).map((r) => ({ value: r.id, label: r.name })),
+      match: (student, selected) => !!student.ruleId && selected.includes(student.ruleId),
+    },
+  ];
+  const activeFilters = { group, rule };
   const filteredStudents = useListFilter({
     items: students ?? [],
     query: q,
     searchText: (student) =>
       `${student.name} ${student.groupName ?? ""} ${complianceByStudent.get(student.id)?.ruleName ?? ""}`,
-    activeFilters: {},
+    filters,
+    activeFilters,
   });
   const sortedStudents = useTableSort({
     items: filteredStudents,
@@ -103,6 +143,13 @@ function AdjustmentsStudentsPage() {
 
   function setQuery(value: string) {
     navigate({ search: (prev) => pruneEmpty({ ...prev, q: value }), replace: true });
+  }
+
+  function setFilter(key: string, values: string[]) {
+    navigate({
+      search: (prev) => pruneEmpty({ ...prev, [key]: values }) as AdjustmentsStudentsSearch,
+      replace: true,
+    });
   }
 
   function handleSort(key: string) {
@@ -139,8 +186,9 @@ function AdjustmentsStudentsPage() {
           query={q}
           onQueryChange={setQuery}
           searchPlaceholder="Schüler durchsuchen…"
-          activeFilters={{}}
-          onFilterChange={() => {}}
+          filters={filters}
+          activeFilters={activeFilters}
+          onFilterChange={setFilter}
         />
       )}
 
@@ -149,7 +197,7 @@ function AdjustmentsStudentsPage() {
         <p className="text-muted-foreground">Noch keine Schüler angelegt.</p>
       )}
       {!isLoading && !!students?.length && !filteredStudents.length && (
-        <p className="text-muted-foreground">Keine Schüler entsprechen der Suche.</p>
+        <p className="text-muted-foreground">Keine Schüler entsprechen der Suche/den Filtern.</p>
       )}
 
       {!!sortedStudents.length && (
