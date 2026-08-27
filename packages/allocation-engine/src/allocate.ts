@@ -179,6 +179,35 @@ export function allocate(input: AllocationInput, config: AllocationConfig): Allo
     });
   }
 
+  // Pinned modules are guaranteed before either round runs: seeded directly
+  // into assignedModuleIds/assignedModuleIdSet and assignedTotal, entirely
+  // bypassing buildWindow — so no capacity, blocked-category/date, or
+  // schedule-overlap check ever applies to the pin itself, and two pins on
+  // the same day both survive. assignedRankByModuleId is still populated from
+  // the student's own preferences here (same lookup as assignModule) so a
+  // module that happens to be both pinned and independently ranked isn't
+  // misreported as an unranked/filler pick in preferenceDistribution/score —
+  // a pin with no matching preference correctly ends up unranked either way.
+  // creditSubRule runs so a pin can already satisfy a sub-rule (e.g. "1x
+  // Sport") before the student is ever considered in a round. From here on,
+  // every existing filter (buildWindow's date-overlap check via
+  // assignedDateIds, the sub-rule "still open" check, capacity accounting)
+  // transparently treats a pinned module as already-assigned, with no
+  // per-filter special-casing needed.
+  for (const state of studentStates.values()) {
+    for (const moduleId of state.student.pinnedModuleIds) {
+      if (state.assignedModuleIdSet.has(moduleId)) continue;
+      const module = moduleById.get(moduleId);
+      if (!module) continue; // stale reference — the caller's responsibility to avoid
+      state.assignedModuleIds.push(moduleId);
+      state.assignedModuleIdSet.add(moduleId);
+      const preference = state.student.preferences.find((p) => p.moduleId === moduleId);
+      state.assignedRankByModuleId.set(moduleId, preference?.rank);
+      moduleRuntimes.get(moduleId)!.assignedTotal += 1;
+      creditSubRule(state, module);
+    }
+  }
+
   function assignedDateIds(state: StudentRuntime): Set<string> {
     const dateIds = new Set<string>();
     for (const moduleId of state.assignedModuleIds) {
@@ -343,8 +372,12 @@ export function allocate(input: AllocationInput, config: AllocationConfig): Allo
   }
 
   // Phase 1: prio round — reserved capacity, priority-rule students only.
+  // Subtracts assignedTotal (only ever >0 here because of pins seeded above)
+  // so a module already filled/over-filled by pins doesn't also reserve
+  // fresh prio-round capacity on top of that.
   for (const module of input.modules) {
-    moduleRuntimes.get(module.id)!.remainingCapacityThisRound = Math.ceil(config.prioPercent * module.max);
+    const runtime = moduleRuntimes.get(module.id)!;
+    runtime.remainingCapacityThisRound = Math.max(0, Math.ceil(config.prioPercent * module.max) - runtime.assignedTotal);
   }
   const prioStudentIds = input.students.filter((s) => studentStates.get(s.id)!.rule.priority).map((s) => s.id);
   runRound(prioStudentIds, true);

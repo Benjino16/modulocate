@@ -5,5 +5,6 @@ export * from "./allocationInput";
 export * from "./allocationPreview";
 export * from "./ruleCompliance";
 export * from "./studentModuleOptions";
+export * from "./studentPinnedModules";
 export * from "./studentPreferences";
 export * from "./moduleDisplay";

@@ -87,6 +87,15 @@ export interface AllocationStudent {
   // Genuine schedule conflict between two different eligible modules (neither individually
   // blocked) is a separate concern, checked directly via AllocationModule.dateIds.
   eligibleModuleIds: ModuleId[];
+  // Modules guaranteed to this student before either round runs — resolved by
+  // the caller (student_pinned_module) independently of, and prior to,
+  // eligibleModuleIds/preferences. Unlike eligibleModuleIds, pins ignore
+  // blocked category/date and, between two pinned modules, schedule overlap
+  // by design: they never go through the normal per-candidate filtering. A
+  // pinned module's dates still block *further*, non-pinned picks for the
+  // rest of this run once seeded, exactly like any other assigned module —
+  // see allocate.ts's pin-seeding step.
+  pinnedModuleIds: ModuleId[];
 }
 
 // --- Input ---

@@ -54,6 +54,7 @@ export function simulateOwnAllocation(
           rank: index + 1,
         })),
         eligibleModuleIds: orderedModuleIds as ModuleId[],
+        pinnedModuleIds: [],
       },
     ],
     modules: modules.map((module) => ({

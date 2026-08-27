@@ -57,16 +57,28 @@ interface SearchResult {
 
 // Backtracks over "assign this module to one still-open sub-rule it can help,
 // or to none", maximizing the number of fully-covered sub-rules. Exponential
-// in the worst case, but bounded by candidates.length (<= a student's
-// moduleCount, typically single digits) and subRules.length (typically a
-// handful) — this runs once per student on demand, not inside the
-// allocation hot loop, so that's an acceptable trade-off at school scale.
+// in the worst case, but was historically bounded by candidates.length (<= a
+// student's moduleCount, typically single digits) and subRules.length
+// (typically a handful) — this runs once per student on demand, not inside
+// the allocation hot loop, so that was an acceptable trade-off at school
+// scale. Pinned modules (allocate.ts) removed that bound: a student can now
+// end up with arbitrarily many assigned modules regardless of moduleCount, so
+// candidates.length is no longer guaranteed small. MAX_SEARCH_STEPS caps the
+// total work rather than pre-limiting candidates/subRules (robust to either
+// growing large): once exhausted, recursion stops opening new branches and
+// simply returns the best assignment found so far — an admissible, possibly
+// non-optimal answer, the same "can under-report" trade-off already accepted
+// for creditSubRule's greedy mid-run heuristic, just applied here only in the
+// pathological case instead of always.
+const MAX_SEARCH_STEPS = 200_000;
+
 function searchBestAssignment(candidates: Candidate[], subRules: AllocationSubRule[]): SearchResult {
   let best: SearchResult = {
     satisfiedCount: -1,
     coverageBySubRule: new Map(),
     moduleIdsBySubRule: new Map(),
   };
+  let steps = 0;
 
   function countSatisfied(coverage: Map<SubRuleId, Set<CategoryId>>): number {
     let count = 0;
@@ -82,6 +94,8 @@ function searchBestAssignment(candidates: Candidate[], subRules: AllocationSubRu
     coverage: Map<SubRuleId, Set<CategoryId>>,
     moduleIdsBySubRule: Map<SubRuleId, ModuleId[]>,
   ): void {
+    if (steps++ > MAX_SEARCH_STEPS) return;
+
     const currentSatisfied = countSatisfied(coverage);
 
     if (index === candidates.length) {

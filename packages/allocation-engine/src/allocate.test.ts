@@ -44,7 +44,9 @@ function rule(ruleId: string, opts: Partial<Pick<AllocationRule, "moduleCount" |
 function student(
   studentId: string,
   ruleId: string,
-  opts: Partial<Pick<AllocationStudent, "preferences" | "eligibleModuleIds" | "groupIds">> = {},
+  opts: Partial<
+    Pick<AllocationStudent, "preferences" | "eligibleModuleIds" | "groupIds" | "pinnedModuleIds">
+  > = {},
 ): AllocationStudent {
   const eligibleModuleIds = opts.eligibleModuleIds ?? (opts.preferences ?? []).map((p) => p.moduleId);
   return {
@@ -53,6 +55,7 @@ function student(
     ruleId: id<RuleId>(ruleId),
     preferences: opts.preferences ?? [],
     eligibleModuleIds,
+    pinnedModuleIds: opts.pinnedModuleIds ?? [],
   };
 }
 
@@ -662,5 +665,163 @@ describe("allocate", () => {
     });
 
     expect(() => allocate(input, defaultConfig)).toThrow();
+  });
+});
+
+describe("allocate — pinned modules", () => {
+  it("assigns a pinned module ignoring capacity, even when it's already full", () => {
+    const r = rule("r1", { moduleCount: 1 });
+    const input = baseInput({
+      rules: [r],
+      modules: [module("m1", { max: 1 })],
+      students: [
+        student("s1", "r1", { pinnedModuleIds: [id("m1")] }),
+        student("s2", "r1", { pinnedModuleIds: [id("m1")] }),
+      ],
+    });
+
+    const result = allocate(input, defaultConfig);
+    expect(result.assignments).toContainEqual({ studentId: id("s1"), moduleId: id("m1") });
+    expect(result.assignments).toContainEqual({ studentId: id("s2"), moduleId: id("m1") });
+    expect(result.issues).toEqual([]);
+  });
+
+  it("satisfies a sub-rule via a pinned module the student never ranked", () => {
+    const sport: CategoryId = id("sport");
+    const r = rule("r1", {
+      moduleCount: 1,
+      subRules: [{ id: id<SubRuleId>("sub1"), categoryIds: [sport] }],
+    });
+    const input = baseInput({
+      rules: [r],
+      modules: [module("bouldern", { max: 5, categoryIds: [sport] })],
+      students: [student("s1", "r1", { pinnedModuleIds: [id("bouldern")] })],
+    });
+
+    const result = allocate(input, defaultConfig);
+    expect(result.assignments).toEqual([{ studentId: id("s1"), moduleId: id("bouldern") }]);
+    expect(result.issues).toEqual([]);
+  });
+
+  it("assigns two pinned modules on the same day despite the schedule overlap between them", () => {
+    const r = rule("r1", { moduleCount: 2 });
+    const input = baseInput({
+      rules: [r],
+      modules: [
+        module("m1", { max: 5, dateIds: [id("monday")] }),
+        module("m2", { max: 5, dateIds: [id("monday")] }),
+      ],
+      students: [student("s1", "r1", { pinnedModuleIds: [id("m1"), id("m2")] })],
+    });
+
+    const result = allocate(input, defaultConfig);
+    const assignedModuleIds = result.assignments.map((a) => a.moduleId).sort();
+    expect(assignedModuleIds).toEqual(["m1", "m2"]);
+  });
+
+  it("blocks a further, non-pinned module on the same day as a pinned one", () => {
+    const r = rule("r1", { moduleCount: 2 });
+    const input = baseInput({
+      rules: [r],
+      modules: [
+        module("pinned", { max: 5, dateIds: [id("monday")] }),
+        module("ranked", { max: 5, dateIds: [id("monday")] }),
+      ],
+      students: [
+        student("s1", "r1", {
+          pinnedModuleIds: [id("pinned")],
+          preferences: [{ moduleId: id("ranked"), rank: 1 }],
+          eligibleModuleIds: [id("ranked")],
+        }),
+      ],
+    });
+
+    const result = allocate(input, defaultConfig);
+    expect(result.assignments).toEqual([{ studentId: id("s1"), moduleId: id("pinned") }]);
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({ type: "unassigned", studentId: id("s1") }),
+    );
+  });
+
+  it("a pin alone can already satisfy moduleCount, so no unassigned issue is raised", () => {
+    const r = rule("r1", { moduleCount: 1 });
+    const input = baseInput({
+      rules: [r],
+      modules: [module("m1", { max: 5 })],
+      students: [student("s1", "r1", { pinnedModuleIds: [id("m1")] })],
+    });
+
+    const result = allocate(input, defaultConfig);
+    expect(result.assignments).toEqual([{ studentId: id("s1"), moduleId: id("m1") }]);
+    expect(result.issues).toEqual([]);
+  });
+
+  it("keeps a pinned module's actual preference rank instead of reporting it as unranked", () => {
+    const r = rule("r1", { moduleCount: 1 });
+    const input = baseInput({
+      rules: [r],
+      modules: [module("m1", { max: 5 })],
+      students: [
+        student("s1", "r1", {
+          pinnedModuleIds: [id("m1")],
+          preferences: [{ moduleId: id("m1"), rank: 1 }],
+          eligibleModuleIds: [id("m1")],
+        }),
+      ],
+    });
+
+    const result = allocate(input, defaultConfig);
+    expect(result.assignments).toEqual([{ studentId: id("s1"), moduleId: id("m1") }]);
+    // Rank 1, not bucket 0 (unranked/filler) — the student's stated top
+    // preference happens to be the same module that was also pinned.
+    expect(result.metrics.preferenceDistribution[1]).toBe(1);
+    expect(result.metrics.preferenceDistribution[0]).toBeUndefined();
+    expect(result.metrics.score).toBe(100);
+  });
+
+  it("stays correct and completes promptly when a student is pinned far more modules than their rule's moduleCount", () => {
+    // Regression guard for evaluateRuleFulfillment's exact backtracking
+    // search, which historically assumed a student's assigned-module count
+    // was bounded by rule.moduleCount — pins break that bound, so this
+    // exercises a candidate count an admin could plausibly produce by
+    // over-pinning, via the real allocate() -> evaluateRuleFulfillment path.
+    const sport: CategoryId = id("sport");
+    const r = rule("r1", {
+      moduleCount: 1,
+      subRules: [{ id: id<SubRuleId>("sub1"), categoryIds: [sport] }],
+    });
+    const pinnedModuleIds = Array.from({ length: 16 }, (_, i) => id<ModuleId>(`m${i}`));
+    const modules = pinnedModuleIds.map((moduleId, i) =>
+      module(moduleId, { max: 5, categoryIds: i === 0 ? [sport] : [] }),
+    );
+    const input = baseInput({
+      rules: [r],
+      modules,
+      students: [student("s1", "r1", { pinnedModuleIds })],
+    });
+
+    const result = allocate(input, defaultConfig);
+    expect(result.assignments.map((a) => a.moduleId).sort()).toEqual([...pinnedModuleIds].sort());
+    expect(result.issues).toEqual([]);
+  });
+
+  it("prio-round capacity reservation accounts for capacity already used by pins", () => {
+    const prioRule = rule("prio", { moduleCount: 1, priority: true });
+    const input = baseInput({
+      rules: [prioRule],
+      // max: 2, fully used up by two pins before the prio round even starts —
+      // without subtracting assignedTotal, reserving ceil(1 * 2) = 2 seats
+      // here would let a third student in over capacity.
+      modules: [module("m1", { max: 2 })],
+      students: [
+        student("pinned1", "prio", { pinnedModuleIds: [id("m1")] }),
+        student("pinned2", "prio", { pinnedModuleIds: [id("m1")] }),
+        student("prioStudent", "prio", { preferences: [{ moduleId: id("m1"), rank: 1 }] }),
+      ],
+    });
+
+    const result = allocate(input, { prioPercent: 1, seed: 7 });
+    expect(result.assignments.filter((a) => a.moduleId === id("m1"))).toHaveLength(2);
+    expect(result.assignments).not.toContainEqual({ studentId: id("prioStudent"), moduleId: id("m1") });
   });
 });

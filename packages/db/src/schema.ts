@@ -369,6 +369,23 @@ export const studentInModule = pgTable(
   (table) => [primaryKey({ columns: [table.studentId, table.moduleId] })],
 );
 
+// A module guaranteed to a student before the allocator's normal rounds ever
+// run — resolved live into every allocate() call (assembleAllocationInput),
+// never frozen. Distinct from student_in_module: that table is the *result*
+// of a loaded run and gets fully wiped/rewritten on every allocationRuns.load
+// (see that router), so it can't represent a pre-run guarantee. No onDelete
+// cascade on studentId/moduleId — same as student_in_module/student_preferences,
+// a real fact about a student rather than a pure structural join row.
+export const studentPinnedModule = pgTable(
+  "student_pinned_module",
+  {
+    studentId: uuid("student_id").notNull().references(() => students.id),
+    moduleId: uuid("module_id").notNull().references(() => modules.id),
+    projectId: uuid("project_id").notNull().references(() => projects.id),
+  },
+  (table) => [primaryKey({ columns: [table.studentId, table.moduleId] })],
+);
+
 // --- Email ---
 
 // Durable send history, written by the worker after a job finishes — BullMQ's

@@ -27,6 +27,7 @@ import {
   rules,
   studentGroups,
   studentInGroup,
+  studentPinnedModule,
   studentPreferences,
   students,
   subRules,
@@ -64,6 +65,7 @@ export async function assembleAllocationInput(
     groupMembershipRows,
     studentRows,
     preferenceRows,
+    pinnedModuleRows,
     eligibility,
   ] = await Promise.all([
     executor.select().from(rules).where(eq(rules.projectId, projectId)),
@@ -77,6 +79,7 @@ export async function assembleAllocationInput(
     executor.select().from(studentInGroup).where(eq(studentInGroup.projectId, projectId)),
     executor.select().from(students).where(eq(students.projectId, projectId)),
     executor.select().from(studentPreferences).where(eq(studentPreferences.projectId, projectId)),
+    executor.select().from(studentPinnedModule).where(eq(studentPinnedModule.projectId, projectId)),
     resolveStudentEligibility(executor, { projectId }),
   ]);
 
@@ -153,6 +156,13 @@ export async function assembleAllocationInput(
   }
   const eligibleModuleIdsByStudent = new Map(eligibility.map((e) => [e.studentId, e.eligibleModuleIds]));
 
+  const pinnedModuleIdsByStudent = new Map<string, ModuleId[]>();
+  for (const row of pinnedModuleRows) {
+    const list = pinnedModuleIdsByStudent.get(row.studentId) ?? [];
+    list.push(row.moduleId as ModuleId);
+    pinnedModuleIdsByStudent.set(row.studentId, list);
+  }
+
   const allocationStudents: AllocationStudent[] = [];
   const preIssues: AllocationIssue[] = [];
 
@@ -160,10 +170,13 @@ export async function assembleAllocationInput(
     const groupId = groupIdByStudent.get(student.id);
     const effectiveRuleId = student.ruleId ?? (groupId ? (groupRuleById.get(groupId) ?? null) : null);
     if (!effectiveRuleId) {
+      const hasPins = (pinnedModuleIdsByStudent.get(student.id) ?? []).length > 0;
       preIssues.push({
         type: "unassigned",
         studentId: student.id as StudentId,
-        detail: "Kein Regelwerk zugewiesen (weder Schüler:in noch Gruppe).",
+        detail:
+          "Kein Regelwerk zugewiesen (weder Schüler:in noch Gruppe)." +
+          (hasPins ? " Angeheftete Module werden dadurch ebenfalls nicht zugeteilt." : ""),
       });
       continue;
     }
@@ -173,6 +186,7 @@ export async function assembleAllocationInput(
       ruleId: effectiveRuleId as RuleId,
       preferences: preferencesByStudent.get(student.id) ?? [],
       eligibleModuleIds: (eligibleModuleIdsByStudent.get(student.id) ?? []) as ModuleId[],
+      pinnedModuleIds: pinnedModuleIdsByStudent.get(student.id) ?? [],
     });
   }
 

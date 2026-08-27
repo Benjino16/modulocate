@@ -29,6 +29,13 @@
       "when": 1787671435208,
       "tag": "0003_giant_tattoo",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1787837557094,
+      "tag": "0004_loud_selene",
+      "breakpoints": true
     }
   ]
 }

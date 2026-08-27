@@ -11,8 +11,10 @@ import {
   studentInModule,
   studentPreferences,
   students,
+  resolvePinnedModulesByStudent,
   resolveRuleCompliance,
   resolveStudentModuleOptions,
+  resolveStudentPinnableModules,
   resolveStudentPreferences,
 } from "@modulocate/db";
 import { EmailJobName, getEmailQueue } from "@modulocate/queue";
@@ -105,6 +107,12 @@ async function loadStudents(executor: DbExecutor, projectId: string, ids?: strin
     }
   }
 
+  // Skipped entirely when there are no students, same reasoning as
+  // preferencesByStudent above.
+  const pinnedModulesByStudent = rows.length > 0
+    ? await resolvePinnedModulesByStudent(executor, { projectId, studentIds: rows.map((row) => row.id) })
+    : new Map<string, { id: string; name: string }[]>();
+
   return rows.map((row) => {
     const { ownRuleId, groupRuleId, ...student } = row;
     const effectiveRuleId = ownRuleId ?? groupRuleId ?? null;
@@ -115,6 +123,7 @@ async function loadStudents(executor: DbExecutor, projectId: string, ids?: strin
       ownRuleId,
       ownRuleName: ownRuleId ? (ruleNameById.get(ownRuleId) ?? null) : null,
       averagePreference: average(preferencesByStudent.get(row.id) ?? []),
+      pinnedModules: pinnedModulesByStudent.get(row.id) ?? [],
     };
   });
 }
@@ -140,6 +149,14 @@ export const studentsRouter = router({
   moduleOptions: staffProcedure
     .input(projectScoped.extend({ studentId: z.uuid() }))
     .query(({ input }) => resolveStudentModuleOptions(db, { projectId: input.projectId, studentId: input.studentId })),
+
+  // Every module in the project for the pin dialog (Zuteilung > Schüler tab),
+  // each annotated with whether it's pinned for this student. Deliberately
+  // not eligibility-filtered like moduleOptions — pinning is meant to bypass
+  // blocked category/date rules, so a blocked module must still be pinnable.
+  pinnableModules: staffProcedure
+    .input(projectScoped.extend({ studentId: z.uuid() }))
+    .query(({ input }) => resolveStudentPinnableModules(db, { projectId: input.projectId, studentId: input.studentId })),
 
   // Raw ranked submission for the Umfrage tab — unlike moduleOptions, not
   // filtered to currently-eligible modules, since this shows what the

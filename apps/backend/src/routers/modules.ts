@@ -11,6 +11,7 @@ import {
   moduleCategories,
   dates,
   studentInModule,
+  studentPinnedModule,
   students,
   rules,
   studentGroups,
@@ -486,6 +487,40 @@ export const modulesRouter = router({
             eq(studentInModule.moduleId, input.moduleId),
             eq(studentInModule.studentId, input.studentId),
             eq(studentInModule.projectId, input.projectId),
+          ),
+        );
+      return { success: true as const };
+    }),
+
+  // Pins the module to the student — guaranteed before the next allocator run
+  // ever gets to its normal rounds (packages/allocation-engine/src/allocate.ts),
+  // ignoring capacity, blocked category/date, and schedule overlap with other
+  // pins for that student. Independent of student_in_module (this project's
+  // *result* table, wiped/rewritten on every allocationRuns.load) — pins
+  // persist across runs until explicitly unpinned. onConflictDoNothing guards
+  // the rare double-submit race against the composite primary key.
+  pinStudent: staffProcedure
+    .input(projectScoped.extend({ moduleId: z.uuid(), studentId: z.uuid() }))
+    .mutation(async ({ input }) => {
+      await db
+        .insert(studentPinnedModule)
+        .values({ moduleId: input.moduleId, studentId: input.studentId, projectId: input.projectId })
+        .onConflictDoNothing();
+      return { success: true as const };
+    }),
+
+  // Removes a pin without touching the student's preferences or any already-
+  // loaded student_in_module assignment.
+  unpinStudent: staffProcedure
+    .input(projectScoped.extend({ moduleId: z.uuid(), studentId: z.uuid() }))
+    .mutation(async ({ input }) => {
+      await db
+        .delete(studentPinnedModule)
+        .where(
+          and(
+            eq(studentPinnedModule.moduleId, input.moduleId),
+            eq(studentPinnedModule.studentId, input.studentId),
+            eq(studentPinnedModule.projectId, input.projectId),
           ),
         );
       return { success: true as const };
